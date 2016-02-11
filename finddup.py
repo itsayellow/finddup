@@ -122,7 +122,11 @@ def make_hashes( paths, uniquefiles ):
     filesdone = 0
     filetree={}
     filesreport_time = time.time()
+    needs_cr = False
     for treeroot in paths:
+        if needs_cr:
+            sys.stderr.write("\n")
+            needs_cr = False
         sys.stderr.write("Starting hashing of: "+treeroot+"\n")
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
@@ -141,13 +145,14 @@ def make_hashes( paths, uniquefiles ):
                     else:
                         print( "Not adding to dict: "+filename+this_hash)
                     if filesdone%100 == 0 or time.time()-filesreport_time > 15:
-                        sys.stderr.write("\b"*40+str(filesdone)+" files hashed.")
+                        sys.stderr.write("\b"*40+"  "+str(filesdone)+" files hashed.")
                         sys.stderr.flush() #py3 doesn't seem to flush until \n
+                        needs_cr = True
                         filesreport_time = time.time()
         else:
             print( "skipping file (TODO) "+treeroot)
 
-    sys.stderr.write("\b"*40+str(filesdone)+" files hashed.\n")
+    sys.stderr.write("\b"*40+"  "+str(filesdone)+" files hashed.\n")
 
     return filetree
 
@@ -160,7 +165,11 @@ def find_filesizes( paths ):
     filesizes = {}
     filesdone = 0
     filesreport_time = time.time()
+    needs_cr = False
     for treeroot in paths:
+        if needs_cr:
+            sys.stderr.write("\n")
+            needs_cr = False
         sys.stderr.write("Starting sizing of: "+treeroot+"\n")
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
@@ -178,14 +187,15 @@ def find_filesizes( paths ):
                     else:
                         print( "Not adding to dict: "+filename+this_size)
                     filesdone+=1
-                    if filesdone%100 == 0 or time.time()-filesreport_time > 15:
-                        sys.stderr.write("\b"*40+str(filesdone)+" files sized.")
+                    if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
+                        sys.stderr.write("\b"*40+"  "+str(filesdone)+" files sized.")
                         sys.stderr.flush() #py3 doesn't seem to flush until \n
                         filesreport_time = time.time()
+                        needs_cr = True
         else:
             print( "skipping file (TODO) "+treeroot)
 
-    sys.stderr.write("\b"*40+str(filesdone)+" files sized.\n")
+    sys.stderr.write("\b"*40+"  "+str(filesdone)+" files sized.\n")
 
     unique = 0
     nonunique = 0
