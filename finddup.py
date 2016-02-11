@@ -123,7 +123,7 @@ def make_hashes( paths, uniquefiles ):
     filetree={}
     filesreport_time = time.time()
     for treeroot in paths:
-        sys.stderr.write("\nStarting hashing of: "+treeroot+"\n")
+        sys.stderr.write("Starting hashing of: "+treeroot+"\n")
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir( treeroot ):
@@ -135,11 +135,11 @@ def make_hashes( paths, uniquefiles ):
                         this_hash = "size:"+str(uniquefiles[filepath])
                     else:
                         this_hash = hash_file(filepath)
+                        filesdone+=1
                     if this_hash != "-1":
                         return_dict(filetree,treeroot,root)[filename]=this_hash
                     else:
                         print( "Not adding to dict: "+filename+this_hash)
-                    filesdone+=1
                     if filesdone%100 == 0 or time.time()-filesreport_time > 15:
                         sys.stderr.write("\b"*40+str(filesdone)+" files hashed.")
                         sys.stderr.flush() #py3 doesn't seem to flush until \n
@@ -161,7 +161,7 @@ def find_filesizes( paths ):
     filesdone = 0
     filesreport_time = time.time()
     for treeroot in paths:
-        sys.stderr.write("\nStarting hashing of: "+treeroot+"\n")
+        sys.stderr.write("Starting sizing of: "+treeroot+"\n")
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir( treeroot ):
@@ -187,7 +187,19 @@ def find_filesizes( paths ):
 
     sys.stderr.write("\b"*40+str(filesdone)+" files sized.\n")
 
-    return filesizes
+    unique = 0
+    nonunique = 0
+    uniquefiles = {}
+    for key in filesizes.keys():
+        if len(filesizes[key])==1:
+            unique += 1
+            uniquefiles[filesizes[key][0]] = key
+        else:
+            nonunique += 1
+    sys.stderr.write("Unique: %d\n"%unique)
+    sys.stderr.write("Possibly Non-Unique: %d\n"%nonunique)
+
+    return (filesizes,uniquefiles)
 
 # if is file (hex string) add hex string to db, then return string
 # if is dir (dict): sort keys, concatenate all
@@ -268,23 +280,9 @@ def analyze_hashes( all_hashes ):
 
 def main(argv=None):
     start_time = time.time()
-
     args = process_command_line(argv)
 
-    # new
-    filesizes = find_filesizes( args.searchpaths )
-    unique = 0
-    nonunique = 0
-    uniquefiles = {}
-    for key in filesizes.keys():
-        if len(filesizes[key])==1:
-            unique += 1
-            uniquefiles[filesizes[key][0]] = key
-        else:
-            nonunique += 1
-    #print("Unique: %d"%unique)
-    #print("Non-Unique: %d"%nonunique)
-
+    (filesizes,uniquefiles) = find_filesizes( args.searchpaths )
     filetree = make_hashes( args.searchpaths, uniquefiles )
     all_hashes = filetree2hashes( filetree )
     #print_hashes( all_hashes )
