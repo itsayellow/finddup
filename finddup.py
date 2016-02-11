@@ -270,9 +270,14 @@ def analyze_hashes( all_hashes ):
             unique_files.extend(all_hashes[key])
         else:
             filedir = all_hashes[key][0]
-            dup_size = subprocess.check_output(["du","-sk",filedir])
-            dup_size = dup_size.decode("utf-8")
-            dup_size = int(re.search(r'\d+',dup_size).group(0))
+            if os.path.isfile(filedir):
+                # do it the quick way if we are a regular file
+                #   off from du by at most 4k
+                dup_size = int( os.path.getsize(filedir) / 1024.0 )
+            else:
+                dup_size = subprocess.check_output(["du","-sk",filedir])
+                dup_size = dup_size.decode("utf-8")
+                dup_size = int(re.search(r'\d+',dup_size).group(0))
             dup_files.append([dup_size,]+all_hashes[key])
 
     dup_files.sort(reverse=True, key=lambda dup_list: dup_list[0])
