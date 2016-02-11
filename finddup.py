@@ -119,7 +119,6 @@ def return_dict(filetree,treeroot,root):
         return filetree_branch[root2]
 
 def make_hashes( paths, uniquefiles ):
-    filesdone = 0
     filetree={}
     filesreport_time = time.time()
     needs_cr = False
@@ -131,6 +130,7 @@ def make_hashes( paths, uniquefiles ):
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir( treeroot ):
+            filesdone = 0
             for (root,dirs,files) in os.walk(treeroot):
                 for filename in files:
                     filepath = os.path.join(root,filename)
@@ -149,10 +149,11 @@ def make_hashes( paths, uniquefiles ):
                         sys.stderr.flush() #py3 doesn't seem to flush until \n
                         needs_cr = True
                         filesreport_time = time.time()
+            sys.stderr.write("\b"*40+"  "+str(filesdone)+" files hashed.\n")
+            needs_cr = False
         else:
             print( "skipping file (TODO) "+treeroot)
 
-    sys.stderr.write("\b"*40+"  "+str(filesdone)+" files hashed.\n")
 
     return filetree
 
@@ -163,7 +164,6 @@ def make_hashes( paths, uniquefiles ):
 #     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size 
 def find_filesizes( paths ):
     filesizes = {}
-    filesdone = 0
     filesreport_time = time.time()
     needs_cr = False
     for treeroot in paths:
@@ -174,6 +174,7 @@ def find_filesizes( paths ):
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir( treeroot ):
+            filesdone = 0
             for (root,dirs,files) in os.walk(treeroot):
                 for filename in files:
                     filepath = os.path.join(root,filename)
@@ -192,10 +193,10 @@ def find_filesizes( paths ):
                         sys.stderr.flush() #py3 doesn't seem to flush until \n
                         filesreport_time = time.time()
                         needs_cr = True
+            sys.stderr.write("\b"*40+"  "+str(filesdone)+" files sized.\n")
+            needs_cr = False
         else:
             print( "skipping file (TODO) "+treeroot)
-
-    sys.stderr.write("\b"*40+"  "+str(filesdone)+" files sized.\n")
 
     unique = 0
     nonunique = 0
@@ -206,10 +207,10 @@ def find_filesizes( paths ):
             uniquefiles[filesizes[key][0]] = key
         else:
             nonunique += len(filesizes[key])
-    sys.stderr.write("Unique: %d\n"%unique)
-    sys.stderr.write("Possibly Non-Unique: %d\n"%nonunique)
-
+    sys.stderr.write("\nUnique: %d    "%unique)
+    sys.stderr.write("Possibly Non-Unique: %d\n\n"%nonunique)
     return (filesizes,uniquefiles)
+
 
 # if is file (hex string) add hex string to db, then return string
 # if is dir (dict): sort keys, concatenate all
