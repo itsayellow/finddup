@@ -195,7 +195,7 @@ def find_filesizes( paths ):
             unique += 1
             uniquefiles[filesizes[key][0]] = key
         else:
-            nonunique += 1
+            nonunique += len(filesizes[key])
     sys.stderr.write("Unique: %d\n"%unique)
     sys.stderr.write("Possibly Non-Unique: %d\n"%nonunique)
 
