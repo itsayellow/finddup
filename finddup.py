@@ -4,7 +4,6 @@
 #               searching throughout all paths
 
 # TODO: file size info
-# TODO: figure out if whole directories are dup
 
 import os
 import os.path
@@ -119,7 +118,7 @@ def return_dict(filetree,treeroot,root):
             filetree_branch[root2]={}
         return filetree_branch[root2]
 
-def make_hashes( paths ):
+def make_hashes( paths, uniquefiles ):
     filesdone = 0
     filetree={}
     filesreport_time = time.time()
@@ -131,7 +130,11 @@ def make_hashes( paths ):
             for (root,dirs,files) in os.walk(treeroot):
                 for filename in files:
                     filepath = os.path.join(root,filename)
-                    this_hash = hash_file(filepath)
+                    if filepath in uniquefiles:
+                        # guaranteed not to match hash_file return of pure hex
+                        this_hash = "size:"+str(uniquefiles[filepath])
+                    else:
+                        this_hash = hash_file(filepath)
                     if this_hash != "-1":
                         return_dict(filetree,treeroot,root)[filename]=this_hash
                     else:
@@ -147,6 +150,44 @@ def make_hashes( paths ):
     sys.stderr.write("\b"*40+str(filesdone)+" files hashed.\n")
 
     return filetree
+
+# go through every file and make hash with keys being filesize in bytes
+#   and value being list of files that match
+#     os.path.getsize('C:\\Python27\\Lib\\genericpath.py')
+#      OR
+#     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size 
+def find_filesizes( paths ):
+    filesizes = {}
+    filesdone = 0
+    filesreport_time = time.time()
+    for treeroot in paths:
+        sys.stderr.write("\nStarting hashing of: "+treeroot+"\n")
+        # remove trailing slashes, etc.
+        treeroot = os.path.normpath(treeroot)
+        if os.path.isdir( treeroot ):
+            for (root,dirs,files) in os.walk(treeroot):
+                for filename in files:
+                    filepath = os.path.join(root,filename)
+                    try:
+                        this_size = os.path.getsize(filepath)
+                    except:
+                        this_size = -1;
+                    if this_size != "-1":
+                        # setdefault returns [] if this_size key is not found
+                        filesizes.setdefault(this_size,[]).append(filepath)
+                    else:
+                        print( "Not adding to dict: "+filename+this_size)
+                    filesdone+=1
+                    if filesdone%100 == 0 or time.time()-filesreport_time > 15:
+                        sys.stderr.write("\b"*40+str(filesdone)+" files sized.")
+                        sys.stderr.flush() #py3 doesn't seem to flush until \n
+                        filesreport_time = time.time()
+        else:
+            print( "skipping file (TODO) "+treeroot)
+
+    sys.stderr.write("\b"*40+str(filesdone)+" files sized.\n")
+
+    return filesizes
 
 # if is file (hex string) add hex string to db, then return string
 # if is dir (dict): sort keys, concatenate all
@@ -229,7 +270,22 @@ def main(argv=None):
     start_time = time.time()
 
     args = process_command_line(argv)
-    filetree = make_hashes( args.searchpaths )
+
+    # new
+    filesizes = find_filesizes( args.searchpaths )
+    unique = 0
+    nonunique = 0
+    uniquefiles = {}
+    for key in filesizes.keys():
+        if len(filesizes[key])==1:
+            unique += 1
+            uniquefiles[filesizes[key][0]] = key
+        else:
+            nonunique += 1
+    #print("Unique: %d"%unique)
+    #print("Non-Unique: %d"%nonunique)
+
+    filetree = make_hashes( args.searchpaths, uniquefiles )
     all_hashes = filetree2hashes( filetree )
     #print_hashes( all_hashes )
     analyze_hashes( all_hashes )
