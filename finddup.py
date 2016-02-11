@@ -3,8 +3,11 @@
 # finddup - find duplicate files even if they have different names
 #               searching throughout all paths
 
-# TODO: file size info
-
+# TODO: nice to know if a directory contains only matching files, even if that
+#   directory doesn't match another directory completely
+#     e.g. DIR1: fileA, fileB
+#          DIR2: fileA, fileB, fileC
+#     still might want to delete DIR1 even though it doesn't match exactly DIR2
 import os
 import os.path
 import sys
