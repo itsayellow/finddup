@@ -3,6 +3,8 @@
 # finddup - find duplicate files even if they have different names
 #               searching throughout all paths
 
+# TODO: ignore files, like .DS_Store that don't really affect matching
+#       (maybe in .finddup/ignore ? )
 # TODO: nice to know if a directory contains only matching files, even if that
 #   directory doesn't match another directory completely
 #     e.g. DIR1: fileA, fileB
