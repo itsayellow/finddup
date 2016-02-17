@@ -56,9 +56,9 @@ def process_command_line(argv):
             )
 
     # switches/options:
-    #parser.add_argument(
-    #    '-s', '--max_size', action='store',
-    #    help='String specifying maximum size of images.  Larger images will be resized. (e.g. "1024x768")' )
+    parser.add_argument(
+        '-v', '--verbose', action='store_true', default=False,
+        help='Verbose status messages.' )
     #parser.add_argument(
     #    '-o', '--omit_hidden', action='store_true',
     #    help='Do not copy picasa hidden images to destination directory.' )
@@ -71,7 +71,7 @@ def process_command_line(argv):
 # TODO: hangs trying to open
 #   ~/Library/Application Support/LastPass/pipes/lastpassffplugin
 #   TODO: don't open pipes (use os.path.isfile() ??)
-def hash_file( filepath ):
+def hash_file( filepath, am_verbose ):
     hasher = hashlib.md5()   # 55sec/682 images
     #hasher = hashlib.sha256() # 62sec/682 images
     blocksize = 65536;
@@ -100,7 +100,8 @@ def hash_file( filepath ):
         return hasher.hexdigest()
     else:
         #sys.stderr.write("Not a regular file: "+filepath+"\n")
-        print("Not a regular file: "+filepath)
+        if am_verbose:
+            print("Not a regular file: "+filepath)
         return "-1"
 
 # recurse
@@ -123,7 +124,7 @@ def return_dict(filetree,treeroot,root):
             filetree_branch[root2]={}
         return filetree_branch[root2]
 
-def make_hashes( paths, uniquefiles ):
+def make_hashes( paths, uniquefiles, am_verbose ):
     filetree={}
     filesreport_time = time.time()
     needs_cr = False
@@ -143,12 +144,13 @@ def make_hashes( paths, uniquefiles ):
                         # guaranteed not to match hash_file return of pure hex
                         this_hash = "size:"+str(uniquefiles[filepath])
                     else:
-                        this_hash = hash_file(filepath)
+                        this_hash = hash_file(filepath, am_verbose)
                         filesdone+=1
                     if this_hash != "-1":
                         return_dict(filetree,treeroot,root)[filename]=this_hash
                     else:
-                        print( "Not adding to dict: "+filename+this_hash)
+                        if am_verbose:
+                            print( "Not adding to dict: "+filename+this_hash)
                     if filesdone%100 == 0 or time.time()-filesreport_time > 15:
                         sys.stderr.write("\b"*40+"  "+str(filesdone)+" files hashed.")
                         sys.stderr.flush() #py3 doesn't seem to flush until \n
@@ -304,7 +306,7 @@ def main(argv=None):
     args = process_command_line(argv)
 
     (filesizes,uniquefiles) = find_filesizes( args.searchpaths )
-    filetree = make_hashes( args.searchpaths, uniquefiles )
+    filetree = make_hashes( args.searchpaths, uniquefiles, args.verbose )
     all_hashes = filetree2hashes( filetree )
     #print_hashes( all_hashes )
     analyze_hashes( all_hashes )
