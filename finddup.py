@@ -36,6 +36,10 @@ import re
 #{'dir2': {'file3': '7103', 'dir1': {'file1': '0923', 'file2': '3492'}}}
 #
 # return_hash('dir2/dir1')['file1'] - '0923'
+
+# HACK! TODO
+IGNORE_FILES = {".DS_Store":True,"Thumbs.db":True}
+
 def process_command_line(argv):
     """
     Return a 2-tuple: (settings object, args list).
@@ -139,6 +143,9 @@ def make_hashes( paths, uniquefiles, am_verbose ):
             filesdone = 0
             for (root,dirs,files) in os.walk(treeroot):
                 for filename in files:
+                    # TODO: experiemental
+                    if IGNORE_FILES.get(filename,False):
+                        continue
                     filepath = os.path.join(root,filename)
                     if filepath in uniquefiles:
                         # guaranteed not to match hash_file return of pure hex
@@ -184,6 +191,9 @@ def find_filesizes( paths ):
             filesdone = 0
             for (root,dirs,files) in os.walk(treeroot):
                 for filename in files:
+                    # TODO: experiemental
+                    if IGNORE_FILES.get(filename,False):
+                        continue
                     filepath = os.path.join(root,filename)
                     try:
                         this_size = os.path.getsize(filepath)
