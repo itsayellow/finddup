@@ -38,7 +38,7 @@ import re
 # return_hash('dir2/dir1')['file1'] - '0923'
 
 # HACK! TODO
-IGNORE_FILES = {".DS_Store":True,"Thumbs.db":True}
+IGNORE_FILES = {".DS_Store":True,"Thumbs.db":True,"Icon\r":True}
 
 def process_command_line(argv):
     """
@@ -63,9 +63,6 @@ def process_command_line(argv):
     parser.add_argument(
         '-v', '--verbose', action='store_true', default=False,
         help='Verbose status messages.' )
-    #parser.add_argument(
-    #    '-o', '--omit_hidden', action='store_true',
-    #    help='Do not copy picasa hidden images to destination directory.' )
 
     #(settings, args) = parser.parse_args(argv)
     args = parser.parse_args(argv)
