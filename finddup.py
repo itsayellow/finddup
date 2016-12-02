@@ -18,6 +18,9 @@ import hashlib
 import time
 import subprocess
 import re
+from functools import partial
+import multiprocessing.pool
+import tictoc
 
 #  dir2/file3
 #  dir2/dir1
@@ -38,7 +41,7 @@ import re
 # return_hash('dir2/dir1')['file1'] - '0923'
 
 # HACK! TODO
-IGNORE_FILES = {".DS_Store":True,"Thumbs.db":True,"Icon\r":True}
+IGNORE_FILES = {".picasa.ini":True,".DS_Store":True,"Thumbs.db":True,"Icon\r":True}
 
 def process_command_line(argv):
     """
@@ -76,7 +79,7 @@ def hash_file( filepath, am_verbose ):
     hasher = hashlib.md5()   # 55sec/682 images
     #hasher = hashlib.sha256() # 62sec/682 images
     blocksize = 65536;
-  
+
     # only look at regular files that are not symbolic links
     if os.path.isfile( filepath ) and not os.path.islink( filepath ):
         try:
@@ -105,6 +108,47 @@ def hash_file( filepath, am_verbose ):
             print("Not a regular file: "+filepath)
         return "-1"
 
+
+# TODO: hangs trying to open
+#   ~/Library/Application Support/LastPass/pipes/lastpassffplugin
+#   TODO: don't open pipes (use os.path.isfile() ??)
+def hash_file_map( filepath, am_verbose ):
+    hasher = hashlib.md5()   # 55sec/682 images
+    #hasher = hashlib.sha256() # 62sec/682 images
+    blocksize = 65536;
+
+    # only look at regular files that are not symbolic links
+    if os.path.isfile( filepath ) and not os.path.islink( filepath ):
+        try:
+            fp = open( filepath, 'rb')
+        except OSError:
+            #sys.stderr.write("Can't read: "+filepath+"\n")
+            print("Can't read: "+filepath)
+            this_hash = "-1"
+        else:
+            #sys.stderr.write("Reading "+filepath+"\n")
+            try:
+                buf = fp.read(blocksize)
+            except OSError:
+                fp.close()
+                #sys.stderr.write("Problem reading: "+filepath+"\n")
+                print("Problem reading: "+filepath)
+                this_hash = "-1"
+            else:
+                while len(buf) > 0:
+                    hasher.update(buf)
+                    buf = fp.read(blocksize)
+                fp.close()
+                # TODO: return hex instead for compactness
+                this_hash = hasher.hexdigest()
+    else:
+        #sys.stderr.write("Not a regular file: "+filepath+"\n")
+        if am_verbose:
+            print("Not a regular file: "+filepath)
+        this_hash = "-1"
+
+    return (filepath, this_hash)
+
 # recurse
 # filetree is a dict of dicts
 # treeroot is the top of a tree (don't split it further)
@@ -125,7 +169,47 @@ def return_dict(filetree,treeroot,root):
             filetree_branch[root2]={}
         return filetree_branch[root2]
 
-def make_hashes( paths, uniquefiles, am_verbose ):
+
+# input paths is list of paths to be searched recursively
+# input uniquefiles are files that have unique size and don't need to be hashed
+# input am_verbose is option to print more messages
+# output all_hashes is dict, keys are full filepaths, items are hash values
+def get_all_hashes( paths, uniquefiles, am_verbose ):
+    all_hashes = {}
+    files_tohash = []
+
+    # first get list of all files that need to be hashed
+    for treeroot in paths:
+        if os.path.isdir( treeroot ):
+            for (root,dirs,files) in os.walk(treeroot):
+                for filename in files:
+                    if IGNORE_FILES.get(filename,False):
+                        continue
+                    filepath = os.path.join(root,filename)
+                    if filepath in uniquefiles:
+                        # guaranteed not to match hash_file return of pure hex
+                        all_hashes[filepath] = "size:"+str(uniquefiles[filepath])
+                    else:
+                        files_tohash.append(filepath)
+        else:
+            print( "skipping file (TODO) "+treeroot)
+
+    # multiprocessing speeds up by about x2 - x3 for 8-processor
+    #   somewhat file access limited rather than processor limited
+    with multiprocessing.Pool() as filehash_pool:
+        files_hashes = filehash_pool.map(
+                partial(
+                    hash_file_map,
+                    am_verbose=am_verbose
+                    ),
+                files_tohash
+                )
+
+    all_hashes.update( dict(files_hashes) )
+    return all_hashes
+
+
+def make_hashes( paths, all_hashes, uniquefiles, am_verbose ):
     filetree={}
     filesreport_time = time.time()
     needs_cr = False
@@ -144,12 +228,8 @@ def make_hashes( paths, uniquefiles, am_verbose ):
                     if IGNORE_FILES.get(filename,False):
                         continue
                     filepath = os.path.join(root,filename)
-                    if filepath in uniquefiles:
-                        # guaranteed not to match hash_file return of pure hex
-                        this_hash = "size:"+str(uniquefiles[filepath])
-                    else:
-                        this_hash = hash_file(filepath, am_verbose)
-                        filesdone+=1
+                    this_hash = all_hashes[filepath]
+                    filesdone+=1
                     if this_hash != "-1":
                         return_dict(filetree,treeroot,root)[filename]=this_hash
                     else:
@@ -165,14 +245,14 @@ def make_hashes( paths, uniquefiles, am_verbose ):
         else:
             print( "skipping file (TODO) "+treeroot)
 
-
     return filetree
+
 
 # go through every file and make hash with keys being filesize in bytes
 #   and value being list of files that match
 #     os.path.getsize('C:\\Python27\\Lib\\genericpath.py')
 #      OR
-#     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size 
+#     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size
 def find_filesizes( paths ):
     filesizes = {}
     filesreport_time = time.time()
@@ -309,18 +389,30 @@ def analyze_hashes( all_hashes ):
         print( filename )
 
 def main(argv=None):
-    start_time = time.time()
+    mytimer = tictoc.Timer()
+    mytimer2 = tictoc.Timer()
+    mytimer2.start()
     args = process_command_line(argv)
 
     (filesizes,uniquefiles) = find_filesizes( args.searchpaths )
-    filetree = make_hashes( args.searchpaths, uniquefiles, args.verbose )
+
+    # testing
+    mytimer.start()
+    all_files_hashes = get_all_hashes( args.searchpaths, uniquefiles, args.verbose )
+    mytimer.eltime_pr("get_all_hashes: ", prfile=sys.stderr )
+    #print( "all_files_hashes" )
+    #print( all_files_hashes )
+
+    filetree = make_hashes( args.searchpaths, all_files_hashes, uniquefiles, args.verbose )
+
     all_hashes = filetree2hashes( filetree )
+
     #print_hashes( all_hashes )
+
     analyze_hashes( all_hashes )
 
-    elapsed_time = time.time()-start_time
-    sys.stderr.write("Elapsed time: %.fs\n" % elapsed_time)
-    sys.stdout.write("Elapsed time: %.fs\n" % elapsed_time)
+    mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
+    mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stdout )
     return 0
 
 if __name__ == '__main__':
