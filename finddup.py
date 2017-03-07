@@ -228,6 +228,8 @@ def make_hashes( paths, all_hashes, uniquefiles, am_verbose ):
                     if IGNORE_FILES.get(filename,False):
                         continue
                     filepath = os.path.join(root,filename)
+                    # TODO: the following has thrown a KeyError, why, how?
+                    #   did the file get created since we made all_hashes?
                     this_hash = all_hashes[filepath]
                     filesdone+=1
                     if this_hash != "-1":
