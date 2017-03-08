@@ -11,6 +11,7 @@
 #          DIR2: fileA, fileB, fileC
 #     still might want to delete DIR1 even though it doesn't match exactly DIR2
 import os
+import stat
 import os.path
 import sys
 import argparse
@@ -250,69 +251,6 @@ def make_hashes( paths, all_hashes, uniquefiles, am_verbose ):
     return filetree
 
 
-# go through every file and make hash with keys being filesize in bytes
-#   and value being list of files that match
-#     os.path.getsize('C:\\Python27\\Lib\\genericpath.py')
-#      OR
-#     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size
-def hash_files_by_size( paths ):
-    filesizes = {}
-    filesreport_time = time.time()
-    needs_cr = False
-    for treeroot in paths:
-        if needs_cr:
-            sys.stderr.write("\n")
-            needs_cr = False
-        sys.stderr.write("Starting sizing of: "+treeroot+"\n")
-        # remove trailing slashes, etc.
-        treeroot = os.path.normpath(treeroot)
-        if os.path.isdir( treeroot ):
-            filesdone = 0
-            for (root,dirs,files) in os.walk(treeroot):
-                for filename in files:
-                    # TODO: experiemental
-                    if IGNORE_FILES.get(filename,False):
-                        continue
-                    filepath = os.path.join(root,filename)
-                    try:
-                        this_filestat = os.stat(filepath)
-                        this_size = this_filestat.st_size
-                    except:
-                        print("File Stat ERROR! on: "+filepath )
-                        this_size = -1;
-                    if this_size != "-1":
-                        this_mod = this_filestat.st_mtime
-                        # setdefault returns [] if this_size key is not found
-                        # append as item to filesizes [filepath,filemodtime] to check if modified later
-                        filesizes.setdefault(this_size,[]).append([filepath,this_mod])
-                    else:
-                        print( "Not adding to dict: "+filename+this_size)
-                    filesdone+=1
-                    if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
-                        sys.stderr.write("\b"*40+"  "+str(filesdone)+" files sized.")
-                        sys.stderr.flush() #py3 doesn't seem to flush until \n
-                        filesreport_time = time.time()
-                        needs_cr = True
-            sys.stderr.write("\b"*40+"  "+str(filesdone)+" files sized.\n")
-            needs_cr = False
-        else:
-            print( "skipping file (TODO) "+treeroot)
-
-    unique = 0
-    nonunique = 0
-    uniquefiles = {}
-    for key in filesizes.keys():
-        if len(filesizes[key])==1:
-            unique += 1
-            uniquefiles[filesizes[key][0][0]] = key
-        else:
-            nonunique += len(filesizes[key])
-            print("Filesize: "+str(key)+", Number of files: "+str(len(filesizes[key])))
-    sys.stderr.write("\nUnique: %d    "%unique)
-    sys.stderr.write("Possibly Non-Unique: %d\n\n"%nonunique)
-    return (filesizes,uniquefiles)
-
-
 # if is file (hex string) add hex string to db, then return string
 # if is dir (dict): sort keys, concatenate all
 def recurse_filetree( filetree, all_hashes, path_parent ):
@@ -396,6 +334,134 @@ def analyze_hashes( all_hashes ):
         print( filename )
 
 
+def check_stat_file(filepath):
+    # TODO: experimental
+    if IGNORE_FILES.get(os.path.basename(filepath),False):
+        return (-1,-1)
+
+    # TODO: I think we want to skip links to files but need to confirm
+    # skip symbolic links without commenting
+    if os.path.islink(filepath):
+        return (-1,-1)
+
+    try:
+        this_filestat = os.stat(filepath)
+    except OSError as e:
+        # e.g. FileNotFoundError, PermissionError
+        if needs_cr:
+            print("", file=sys.stderr)
+            needs_cr = False
+        print("Filestat Error opening: "+filepath, file=sys.stderr)
+        print("  Error: "+str(type(e)), file=sys.stderr )
+        print("  Error: "+str(e), file=sys.stderr )
+        return (-1,-1)
+    except:
+        e = sys.exc_info()
+        # TODO: use stderr, check and later set needs_cr
+        if needs_cr:
+            print("", file=sys.stderr)
+            needs_cr = False
+        print("Unhandled File Stat on: "+filepath, file=sys.stderr )
+        print("  Error: "+str(e[0]), file=sys.stderr )
+        print("  Error: "+str(e[1]), file=sys.stderr )
+        print("  Error: "+str(e[2]), file=sys.stderr )
+        return (-1,-1)
+
+    # skip FIFOs without commenting
+    if stat.S_ISFIFO(this_filestat.st_mode):
+        return (-1,-1)
+    # skip sockets without commenting
+    if stat.S_ISSOCK(this_filestat.st_mode):
+        return (-1,-1)
+
+    this_size = this_filestat.st_size
+    this_mod = this_filestat.st_mtime
+    
+    return (this_size, this_mod)
+
+
+# go through every file and make hash with keys being filesize in bytes
+#   and value being list of files that match
+#     os.path.getsize('C:\\Python27\\Lib\\genericpath.py')
+#      OR
+#     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size
+def hash_files_by_size( paths ):
+    filesizes = {}
+    filemodtimes = {}
+    filesreport_time = time.time()
+    needs_cr = False
+    for treeroot in paths:
+        if needs_cr:
+            print("", file=sys.stderr)
+            needs_cr = False
+        print("Starting sizing of: "+treeroot, file=sys.stderr)
+        # remove trailing slashes, etc.
+        treeroot = os.path.normpath(treeroot)
+        if os.path.isdir( treeroot ):
+            filesdone = 0
+            for (root,dirs,files) in os.walk(treeroot):
+                for filename in files:
+                    filepath = os.path.join(root,filename)
+                    (this_size, this_mod) = check_stat_file(filepath)
+                    if this_size == -1:
+                        continue
+
+                    # setdefault returns [] if this_size key is not found
+                    # append as item to filesizes [filepath,filemodtime] to check if modified later
+                    filesizes.setdefault(this_size,[]).append(filepath)
+                    filemodtimes[filepath] = this_mod
+
+                    filesdone+=1
+                    if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
+                        print(
+                                "\b"*40+"  "+str(filesdone)+" files sized.",
+                                end='', file=sys.stderr, flush=True
+                                )
+                        filesreport_time = time.time()
+                        needs_cr = True
+        else:
+            # this treeroot was a file
+            filepath = treeroot
+            (this_size, this_mod) = check_stat_file(filepath)
+            if this_size == -1:
+                continue
+
+            # setdefault returns [] if this_size key is not found
+            # append as item to filesizes [filepath,filemodtime] to check if modified later
+            filesizes.setdefault(this_size,[]).append(filepath)
+            filemodtimes[filepath] = this_mod
+
+            filesdone+=1
+            if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
+                print(
+                        "\b"*40+"  "+str(filesdone)+" files sized.",
+                        end='', file=sys.stderr, flush=True
+                        )
+                filesreport_time = time.time()
+                needs_cr = True
+
+    # print final tally with CR
+    print("\b"*40+"  "+str(filesdone)+" files sized.", file=sys.stderr)
+    needs_cr = False
+
+    unique = 0
+    nonunique = 0
+    uniquefiles = []
+    for key in filesizes.keys():
+        if len(filesizes[key])==1:
+            unique += 1
+            uniquefiles.append(filesizes[key][0])
+        else:
+            nonunique += len(filesizes[key])
+
+    # remove all unique filesize files from filesizes
+    filesizes = {k:filesizes[k] for k in filesizes if len(filesizes[k])>1}
+
+    print("\nUnique: %d    "%unique, file=sys.stderr)
+    print("Possibly Non-Unique: %d\n"%nonunique, file=sys.stderr)
+    return (filesizes,uniquefiles,filemodtimes)
+
+
 # datachunks_list: list of arrays
 # match_groups: list of indicies_match_lists, indicies_match_list is all indicies with identical arrays
 def matching_array_groups(datachunks_list):
@@ -418,13 +484,19 @@ def matching_array_groups(datachunks_list):
 
 def compare_file_group(filelist):
     # max file read is total memory to be used divided by len(filelist)
-    # 512MB
+    # total no more than 512MB, each no more than 1MB
     max_file_read = 512*1024*1024 // len(filelist)
-    max_file_read = 5 # small for debugging
-
+    max_file_read = min(1024*1024,max_file_read)
+    #max_file_read = 5 # small for debugging
     if max_file_read < 5:
         raise Exception("compare_file_group: too many files to compare: "+str(len(filelist)))
+    print("max_file_read = "+str(max_file_read))
+    
     max_files_open = 1 # later we can optimize by allowing multiple files open at the same time
+
+    # amt_file_read starts small on first pass (most files will be caught)
+    #   later it will be upped to max_file_read for next passes
+    amt_file_read = 256
 
     # init empty lists to append to
     unique_files = []
@@ -445,7 +517,7 @@ def compare_file_group(filelist):
         filelist_groups_next = []
 
         # for debugging print current groups every time through
-        print(filelist_groups)
+        print([len(x) for x in filelist_groups])
 
         # each filelist_group is a possible set of duplicate files
         # a file is split off from a filelist_group as it is shown to be different from others in group,
@@ -458,10 +530,11 @@ def compare_file_group(filelist):
                 try:
                     with open(thisfile,'rb') as thisfile_fh:
                         thisfile_fh.seek(filepos)
-                        this_filedata = thisfile_fh.read(max_file_read)
+                        this_filedata = thisfile_fh.read(amt_file_read)
                     filedata_list.append(this_filedata)
                     # get how many bytes we actually read (may be less than max)
                     filedata_size_list.append(len(this_filedata))
+                #except (FileNotFoundError, PermissionError) as e:
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
                     print("Error opening: "+thisfile)
@@ -473,13 +546,16 @@ def compare_file_group(filelist):
                     filedata_size_list.append(-1)
                 except:
                     e = sys.exc_info()
-                    print("Error opening: "+thisfile)
+                    print("UNHANDLED Error opening: "+thisfile)
                     print("  Error: "+str(e[0]))
                     print("  Error: "+str(e[1]))
-                    invalid_files.append([ thisfile, str(e[0]), str(e[1]) ])
-                    # append -1 to signify invalid
-                    filedata_list.append(-1)
-                    filedata_size_list.append(-1)
+                    print("  Error: "+str(e[2]))
+                    raise e[0]
+
+                    #invalid_files.append([ thisfile, str(e[0]), str(e[1]) ])
+                    ## append -1 to signify invalid
+                    #filedata_list.append(-1)
+                    #filedata_size_list.append(-1)
 
             # remove invalid files from filelist_group, filedata_list, filedata_size_list
             invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i]==-1]
@@ -500,34 +576,44 @@ def compare_file_group(filelist):
             for match_idx_group in match_idx_groups:
                 filedata_sizes_group = [filedata_size_list[i] for i in match_idx_group]
                 # all filedata_sizes in matching group should be equal, so check the first one as representve
-                if filedata_sizes_group[0] < max_file_read:
+                if filedata_sizes_group[0] < amt_file_read:
                     # if entire matching group has less data than we tried to read, we are at end of files
                     #   and this is a final dupgroup
                     dup_groups.append([filelist_group[i] for i in match_idx_group])
                 else:
-                    # if filedata size is max_file_read then not at end of files, keep reading / checking
+                    # if filedata size is amt_file_read then not at end of files, keep reading / checking
                     filelist_groups_next.append([filelist_group[i] for i in match_idx_group])
 
         # increment file position for reading next time through groups
-        filepos = filepos + max_file_read
-
-    print("unique_files:")
-    print(unique_files)
-    print("dup_groups:")
-    print(dup_groups)
-    print("invalid_files:")
-    print(invalid_files)
-    print("")
+        filepos = filepos + amt_file_read
+        # after first pass dramatically increase file reads
+        amt_file_read = max_file_read
 
     return (unique_files,dup_groups,invalid_files)
 
 
 def compare_files(filesizes):
-    dupgroups = []
-    uniquefiles = []
+    unique_files = []
+    dup_groups = []
+    invalid_files = []
+
     for key in filesizes.keys():
-        compare_file_group([x[9] for x in filesizes[key]])
-    return (dupgroups,uniquefiles)
+        (this_unique_files,this_dup_groups,this_invalid_files) = compare_file_group(filesizes[key])
+        unique_files.extend(this_unique_files)
+        dup_groups.extend(this_dup_groups)
+        invalid_files.extend(this_invalid_files)
+
+    print("unique_files:")
+    print(unique_files)
+
+    print("\n\ndup_groups:")
+    for dup_group in dup_groups:
+        print(dup_group)
+    print("\n\ninvalid_files:")
+    print(invalid_files)
+    print("")
+
+    return (dup_groups,unique_files,invalid_files)
 
 
 def main(argv=None):
@@ -540,10 +626,15 @@ def main(argv=None):
     #   1. For every file, get: size, mod_time
     #   2. hash by sizes, each hash size in dict fill with list of all files that size
     #   3. go through all hashes, for each hash deciding which of the list are unique or same
-    (filesizes,uniquefiles) = hash_files_by_size( args.searchpaths )
 
+    # filesizes is dict: keys are file sizes in bytes, items are lists of 2-tuples (filepath,modtime) that
+    #   are all that size
+    # unique_size_files is dict: keys are filepath, items are sizes (TODO: maybe not useful??)
+    (filesizes, unique_size_files, filemodtimes) = hash_files_by_size( args.searchpaths )
 
-    (dupgroups,uniquefiles) = compare_files(filesizes)
+    # TODO: filesizes hash also contains verified unique files, we need to omit them from compare_files
+    (dupgroups,uniquefiles,invalid_files) = compare_files(filesizes)
+
     # testing
     mytimer.start()
     #all_files_hashes = get_all_hashes( args.searchpaths, uniquefiles, args.verbose )
