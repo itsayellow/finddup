@@ -22,6 +22,11 @@ from functools import partial
 import multiprocessing.pool
 import tictoc
 
+# how much total memory bytes to use during comparison of files (Larger is faster up to a point)
+MEM_TO_USE = 512*1024*1024    # 512MB
+MEM_TO_USE = 2*1024*1024*1024 # 2GB
+MEM_TO_USE = 1024*1024*1024   # 1GB
+
 #  dir2/file3
 #  dir2/dir1
 #  dir2/dir1/file1
@@ -255,7 +260,7 @@ def matching_array_groups(datachunks_list):
     # loop through chunks, looking for matches in unsearched chunks for first item in unsearched chunks
     #   item will always match itself, may match others
     #   save all matching indicies for this chunk into list of indicies appended to match_groups
-    while(len(ungrp_chunk_indicies) > 0):
+    while(ungrp_chunk_indicies): # e.g. while len > 0
         #print(ungrp_chunk_indicies)
         test_idx = ungrp_chunk_indicies[0]
         matching_indicies = [i for i in ungrp_chunk_indicies if datachunks_list[i]==datachunks_list[test_idx]]
@@ -266,16 +271,8 @@ def matching_array_groups(datachunks_list):
 
 
 def compare_file_group(filelist):
-    # max file read is total memory to be used divided by len(filelist)
-    # total no more than 512MB, each no more than 1MB
-    max_file_read = 512*1024*1024 // len(filelist)
-    max_file_read = min(1024*1024,max_file_read)
-    #max_file_read = 5 # small for debugging
-    if max_file_read < 5:
-        raise Exception("compare_file_group: too many files to compare: "+str(len(filelist)))
-    print("max_file_read = "+str(max_file_read))
-    
-    max_files_open = 1 # later we can optimize by allowing multiple files open at the same time
+    print('------ compare_file_group -----------')
+    max_files_open = 1 # TODO: we can optimize by allowing multiple files open at the same time
 
     # amt_file_read starts small on first pass (most files will be caught)
     #   later it will be upped to max_file_read for next passes
@@ -294,7 +291,7 @@ def compare_file_group(filelist):
 
     # TODO: if total files is small enough  (< 100?), keep them all open while reading, close when they are 
     #       called unique or dup  (Or at very end!)
-    while(len(filelist_groups_next)>0):
+    while(filelist_groups_next): # i.e. while len > 0
         filelist_groups = filelist_groups_next[:]
         # reset next groups
         filelist_groups_next = []
@@ -369,8 +366,18 @@ def compare_file_group(filelist):
 
         # increment file position for reading next time through groups
         filepos = filepos + amt_file_read
-        # after first pass dramatically increase file reads
-        amt_file_read = max_file_read
+
+        if filelist_groups_next: # i.e if non-empty
+            # max file read is total memory to be used divided by num of files in largest group this iter
+            # total no more than MEM_TO_USE
+            max_file_read = MEM_TO_USE // max([len(x) for x in filelist_groups_next])
+            #max_file_read = 5 # small for debugging
+            if max_file_read < 5:
+                raise Exception("compare_file_group: too many files to compare: "+str(len(filelist)))
+            print("max_file_read = "+str(max_file_read))
+        
+            # after first pass dramatically increase file reads
+            amt_file_read = max_file_read
 
     return (unique_files,dup_groups,invalid_files)
 
