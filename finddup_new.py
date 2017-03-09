@@ -122,6 +122,9 @@ def analyze_hashes( all_hashes ):
         print( filename )
 
 
+# get filestat on file if possible (i.e. readable), discard if symlink, pipe, fifo
+# from filestat return filesize, file mod_time
+# return (-1,-1) if discarded file
 def check_stat_file(filepath):
     # TODO: experimental
     if IGNORE_FILES.get(os.path.basename(filepath),False):
@@ -168,16 +171,61 @@ def check_stat_file(filepath):
     return (this_size, this_mod)
 
 
-# go through every file and make hash with keys being filesize in bytes
-#   and value being list of files that match
-#     os.path.getsize('C:\\Python27\\Lib\\genericpath.py')
-#      OR
-#     os.stat('C:\\Python27\\Lib\\genericpath.py').st_size
-def hash_files_by_size( paths ):
+# filetree is dict of dicts and items
+#   each subdir is a nested dict subtree containing dicts and items
+#   base of filetree corresponds to master_root
+# return valid pointer to subtree of tree corresponding to root dir
+# base of dict tree is relative to string master_root
+# root is string of dir to get dict of (also containing master_root string)
+# create tree dict hierarchical structure if needed to get to root
+def subtree_dict(filetree, root, master_root):
+    # root includes master_root
+    #print( "Item:" )
+    #print( "  root: " + root)
+    #print( "  master_root: " + master_root)
+    root_relative = os.path.relpath(root, start=master_root)
+    #print( "  root_relative to master_root: " + root_relative)
+    subtree = filetree
+    for pathpart in root_relative.split( os.path.sep ):
+        if pathpart and pathpart != '.':
+            subtree = subtree.setdefault(pathpart,{})
+    return subtree
+
+
+# go through every file hierarchically inside argument paths
+# make hash with keys being filesize in bytes and value being list of files that match
+def hash_files_by_size( paths, master_root ):
     filesizes = {}
+    filetree = {}
     filemodtimes = {}
     filesreport_time = time.time()
     needs_cr = False
+    filesdone = 0
+
+    # local function to process one file
+    def process_file_size():
+        nonlocal filesdone, filesreport_time, needs_cr
+
+        # set filename branch of filetree to -1 (placeholder, meaning no id)
+        subtree_dict(filetree, root, master_root)[filename] = -1
+
+        filepath = os.path.join(root,filename)
+        (this_size, this_mod) = check_stat_file(filepath)
+        if this_size == -1:
+            return
+
+        # setdefault returns [] if this_size key is not found
+        # append as item to filesizes [filepath,filemodtime] to check if modified later
+        filesizes.setdefault(this_size,[]).append(filepath)
+        filemodtimes[filepath] = this_mod
+
+        filesdone+=1
+        if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
+            print( "\r  "+str(filesdone)+" files sized.", end='', file=sys.stderr, flush=True)
+            filesreport_time = time.time()
+            needs_cr = True
+
+    # Actual hierarchical processing
     for treeroot in paths:
         if needs_cr:
             print("", file=sys.stderr)
@@ -186,50 +234,16 @@ def hash_files_by_size( paths ):
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir( treeroot ):
-            filesdone = 0
             for (root,dirs,files) in os.walk(treeroot):
+                # TODO: get modtime on directories too, to see if they change?
                 for filename in files:
-                    filepath = os.path.join(root,filename)
-                    (this_size, this_mod) = check_stat_file(filepath)
-                    if this_size == -1:
-                        continue
-
-                    # setdefault returns [] if this_size key is not found
-                    # append as item to filesizes [filepath,filemodtime] to check if modified later
-                    filesizes.setdefault(this_size,[]).append(filepath)
-                    filemodtimes[filepath] = this_mod
-
-                    filesdone+=1
-                    if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
-                        print(
-                                "\b"*40+"  "+str(filesdone)+" files sized.",
-                                end='', file=sys.stderr, flush=True
-                                )
-                        filesreport_time = time.time()
-                        needs_cr = True
+                    process_file_size()
         else:
             # this treeroot was a file
-            filepath = treeroot
-            (this_size, this_mod) = check_stat_file(filepath)
-            if this_size == -1:
-                continue
-
-            # setdefault returns [] if this_size key is not found
-            # append as item to filesizes [filepath,filemodtime] to check if modified later
-            filesizes.setdefault(this_size,[]).append(filepath)
-            filemodtimes[filepath] = this_mod
-
-            filesdone+=1
-            if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
-                print(
-                        "\b"*40+"  "+str(filesdone)+" files sized.",
-                        end='', file=sys.stderr, flush=True
-                        )
-                filesreport_time = time.time()
-                needs_cr = True
+            process_file_size()
 
     # print final tally with CR
-    print("\b"*40+"  "+str(filesdone)+" files sized.", file=sys.stderr)
+    print("\r  "+str(filesdone)+" files sized.", file=sys.stderr)
     needs_cr = False
 
     unique = 0
@@ -247,7 +261,7 @@ def hash_files_by_size( paths ):
 
     print("\nUnique: %d    "%unique, file=sys.stderr)
     print("Possibly Non-Unique: %d\n"%nonunique, file=sys.stderr)
-    return (filesizes,uniquefiles,filemodtimes)
+    return (filesizes,uniquefiles,filemodtimes,filetree)
 
 
 # datachunks_list: list of arrays
@@ -353,6 +367,7 @@ def compare_file_group(filelist):
 
             # we stop reading a file if it is confirmed unique, or if we get to the end of the file
 
+            # for each group > 1 member, see if we need to keep searching it or got to end of files
             for match_idx_group in match_idx_groups:
                 filedata_sizes_group = [filedata_size_list[i] for i in match_idx_group]
                 # all filedata_sizes in matching group should be equal, so check the first one as representve
@@ -393,18 +408,100 @@ def compare_files(filesizes):
         dup_groups.extend(this_dup_groups)
         invalid_files.extend(this_invalid_files)
 
-    print("unique_files:")
-    print(unique_files)
-
-    print("\n\ndup_groups:")
-    for dup_group in dup_groups:
-        print(dup_group)
-    print("\n\ninvalid_files:")
-    print(invalid_files)
-    print("")
-
     return (dup_groups,unique_files,invalid_files)
 
+
+def create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root):
+    file_id = {}
+    idnum = 0;
+    for unq_file in unique_files:
+        file_id[unq_file] = idnum
+
+        # add id to tree
+        (unq_dir,unq_file) = os.path.split(unq_file)
+        subtree_dict(filetree, unq_dir, master_root)[unq_file] = idnum
+
+        idnum += 1
+    for dup_group in dup_groups:
+        for dup_file in dup_group:
+            file_id[dup_file] = idnum
+
+            # add id to tree
+            (dup_dir,dup_file) = os.path.split(dup_file)
+            subtree_dict(filetree, dup_dir, master_root)[dup_file] = idnum
+        idnum += 1
+
+    return file_id
+
+
+# recurse
+# filetree is a dict of dicts
+# treeroot is the top of a tree (don't split it further)
+# root is current root (some of which is treeroot)
+# return a dict
+def return_dict(filetree,treeroot,root):
+    if treeroot == root:
+        # if we've reached the root of the tree, then recursion stops, return
+        #   the dict
+        # if dict doesn't exist, then return empty dict
+        if treeroot not in filetree:
+            filetree[treeroot] = {}
+        return filetree[treeroot]
+    else:
+        (root1,root2) = os.path.split(root)
+        filetree_branch = return_dict( filetree, treeroot, root1)
+        if root2 not in filetree_branch:
+            filetree_branch[root2]={}
+        return filetree_branch[root2]
+
+def make_hash_tree( paths, file_id, am_verbose ):
+    filetree={}
+    filesreport_time = time.time()
+    needs_cr = False
+    for treeroot in paths:
+        if needs_cr:
+            print("", file=sys.stderr)
+            needs_cr = False
+        print("Starting hashing of: "+treeroot, file=sys.stderr)
+        # remove trailing slashes, etc.
+        treeroot = os.path.normpath(treeroot)
+        if os.path.isdir( treeroot ):
+            filesdone = 0
+            for (root,dirs,files) in os.walk(treeroot):
+                for filename in files:
+                    # TODO: experiemental
+                    if IGNORE_FILES.get(filename,False):
+                        continue
+                    filepath = os.path.join(root,filename)
+                    # TODO: the following has thrown a KeyError, why, how?
+                    #   did the file get created since we made file_id?
+                    this_hash = file_id[filepath]
+                    filesdone+=1
+                    if this_hash != "-1":
+                        return_dict(filetree,treeroot,root)[filename]=this_hash
+                    else:
+                        if am_verbose:
+                            print( "Not adding to dict: "+filename+this_hash)
+                    if filesdone%100 == 0 or time.time()-filesreport_time > 15:
+                        print( "\r  "+str(filesdone)+" files hashed.", end="", file=sys.stderr, flush=True)
+                        needs_cr = True
+                        filesreport_time = time.time()
+            print("\r  "+str(filesdone)+" files hashed.", file=sys.stderr)
+            needs_cr = False
+        else:
+            print( "skipping file (TODO) "+treeroot)
+
+    return filetree
+
+
+# IDEA
+# when recursing filetree with os.walk and using fstat, for directories:
+#   record dir fullpath (like file)
+#   record dir mod_time
+#   record dir size as sum of children dirs and files
+#   record placeholder for dir of all children files and directories
+# Later,
+#   go back through directories, and update placeholder with file_id instead of names
 
 def main(argv=None):
     mytimer = tictoc.Timer()
@@ -415,17 +512,63 @@ def main(argv=None):
     # NEW IDEA:
     #   1. For every file, get: size, mod_time
     #   2. hash by sizes, each hash size in dict fill with list of all files that size
-    #   3. go through all hashes, for each hash deciding which of the list are unique or same
-    #       by comparing matching-size files block by block, splitting into groups
+    #   3. go through each hash, deciding which of the list are unique or same
+    #       by comparing matching-size files block by block, splitting into subgroups as differences found
 
+    searchpaths = [os.path.abspath(x) for x in args.searchpaths ]
+    master_root = os.path.commonpath( searchpaths )
+    print( "searchpaths: "+str(searchpaths))
+    print( "master_root: "+master_root)
+    
     # filesizes is dict: keys are file sizes in bytes, items are lists of filepaths that
     #   are all that size (lists are all len > 1)
     # unique_size_files is list: filepaths
     # filemodtimes is dict: keys are filepaths, items are modtimes when file was stat'ed
-    (filesizes, unique_size_files, filemodtimes) = hash_files_by_size( args.searchpaths )
+    (filesizes, unique_size_files, filemodtimes, filetree) = hash_files_by_size( searchpaths, master_root )
 
     # compare all filegroups by using byte-by-byte comparison to find actually unique, duplicate
-    (dupgroups,uniquefiles,invalid_files) = compare_files(filesizes)
+    # dupgroups: list of lists of identical files
+    # uniquefiles: list unique files
+    # invalid_files: list problematic (mostly unreadable) files
+    (dup_groups,unique_files,invalid_files) = compare_files(filesizes)
+
+    # make sure all unique files are folded into list unique_files
+    unique_files.extend(unique_size_files)
+
+    # now we know all of the files that are duplicates and unique
+    # we will also determine below which directories are identical in that they contain identical
+    #   files and subdirs
+
+    # for each unique file, make a unique id, identical-data files share id
+    #   save unique id to file_id dict (key=filepath, item=id)
+    #   save unique id to items of files in filetree hierarchical dict
+    file_id = create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root)
+
+    print(filetree)
+
+    #filetree = make_hash_tree( args.searchpaths, file_id, args.verbose )
+
+    #all_hashes = filetree2hashes( filetree )
+
+    #analyze_hashes( all_hashes )
+
+    # find matching directories containing sets of matching files
+    # also check if files have changed since start of analysis and denote them unknown
+
+    # do we need a unique id for each file that is item for filepath key?
+    #   then we could just go through tree, constructing dir key from contents keys
+    #   any file that is invalid or unknown invalidates all dirs above it
+
+
+    # final tally (DEBUG)
+    print("unique_files:")
+    print(unique_files)
+    print("\n\ndup_groups:")
+    for dup_group in dup_groups:
+        print(dup_group)
+    print("\n\ninvalid_files:")
+    print(invalid_files)
+    print("")
 
     mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
     mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stdout )
