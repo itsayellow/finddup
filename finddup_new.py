@@ -90,7 +90,7 @@ def analyze_hashes( all_hashes ):
     unique_files = []
     dup_files = []
 
-    sys.stderr.write("Analyzing files...\n")
+    print("Analyzing files...", file=sys.stderr)
 
     for key in all_hashes.keys():
         if len(all_hashes[key]) == 1:
@@ -204,6 +204,7 @@ def hash_files_by_size( paths, master_root ):
 
     # local function to process one file
     def process_file_size():
+        # read/write these from hash_files_by_size scope
         nonlocal filesdone, filesreport_time, needs_cr
 
         # set filename branch of filetree to -1 (placeholder, meaning no id)
@@ -242,9 +243,9 @@ def hash_files_by_size( paths, master_root ):
             # this treeroot was a file
             process_file_size()
 
-    # print final tally with CR
-    print("\r  "+str(filesdone)+" files sized.", file=sys.stderr)
-    needs_cr = False
+        # print final tally with CR
+        print("\r  "+str(filesdone)+" files sized.", file=sys.stderr)
+        needs_cr = False
 
     unique = 0
     nonunique = 0
@@ -285,7 +286,7 @@ def matching_array_groups(datachunks_list):
 
 
 def compare_file_group(filelist):
-    print('------ compare_file_group -----------')
+    #print('------ compare_file_group -----------')
     max_files_open = 1 # TODO: we can optimize by allowing multiple files open at the same time
 
     # amt_file_read starts small on first pass (most files will be caught)
@@ -311,7 +312,7 @@ def compare_file_group(filelist):
         filelist_groups_next = []
 
         # for debugging print current groups every time through
-        print([len(x) for x in filelist_groups])
+        #print([len(x) for x in filelist_groups])
 
         # each filelist_group is a possible set of duplicate files
         # a file is split off from a filelist_group as it is shown to be different from others in group,
@@ -389,7 +390,7 @@ def compare_file_group(filelist):
             #max_file_read = 5 # small for debugging
             if max_file_read < 5:
                 raise Exception("compare_file_group: too many files to compare: "+str(len(filelist)))
-            print("max_file_read = "+str(max_file_read))
+            #print("max_file_read = "+str(max_file_read))
         
             # after first pass dramatically increase file reads
             amt_file_read = max_file_read
@@ -454,44 +455,30 @@ def return_dict(filetree,treeroot,root):
             filetree_branch[root2]={}
         return filetree_branch[root2]
 
-def make_hash_tree( paths, file_id, am_verbose ):
-    filetree={}
-    filesreport_time = time.time()
-    needs_cr = False
-    for treeroot in paths:
-        if needs_cr:
-            print("", file=sys.stderr)
-            needs_cr = False
-        print("Starting hashing of: "+treeroot, file=sys.stderr)
-        # remove trailing slashes, etc.
-        treeroot = os.path.normpath(treeroot)
-        if os.path.isdir( treeroot ):
-            filesdone = 0
-            for (root,dirs,files) in os.walk(treeroot):
-                for filename in files:
-                    # TODO: experiemental
-                    if IGNORE_FILES.get(filename,False):
-                        continue
-                    filepath = os.path.join(root,filename)
-                    # TODO: the following has thrown a KeyError, why, how?
-                    #   did the file get created since we made file_id?
-                    this_hash = file_id[filepath]
-                    filesdone+=1
-                    if this_hash != "-1":
-                        return_dict(filetree,treeroot,root)[filename]=this_hash
-                    else:
-                        if am_verbose:
-                            print( "Not adding to dict: "+filename+this_hash)
-                    if filesdone%100 == 0 or time.time()-filesreport_time > 15:
-                        print( "\r  "+str(filesdone)+" files hashed.", end="", file=sys.stderr, flush=True)
-                        needs_cr = True
-                        filesreport_time = time.time()
-            print("\r  "+str(filesdone)+" files hashed.", file=sys.stderr)
-            needs_cr = False
-        else:
-            print( "skipping file (TODO) "+treeroot)
 
-    return filetree
+# remove redundant searchpaths
+# find master_root common root for all searchpaths
+def process_searchpaths( searchpaths ):
+    remove_searchpath = {}
+
+    # convert to absolute paths
+    new_searchpaths = [os.path.abspath(x) for x in searchpaths ]
+    # eliminate duplicate paths
+    new_searchpaths = list(set(new_searchpaths))
+    # search for paths that are subdir of another path, eliminate them
+    for searchpath1 in new_searchpaths:
+        for searchpath2 in new_searchpaths:
+            test_relpath = os.path.relpath(searchpath1, start=searchpath2)
+            if test_relpath != '.' and not test_relpath.startswith('..'):
+                # if '.' : searchpath1 and searchpath2 are same path (search artifact)
+                # if relpath doesn't start with .. , then searchpath1 is subdir of searchpath2
+                remove_searchpath[searchpath1]=True
+    for (i,searchpath) in enumerate(new_searchpaths):
+        if remove_searchpath.get(searchpath,False):
+            del(new_searchpaths[i])
+        
+    master_root = os.path.commonpath( new_searchpaths )
+    return (master_root, new_searchpaths)
 
 
 # IDEA
@@ -515,8 +502,7 @@ def main(argv=None):
     #   3. go through each hash, deciding which of the list are unique or same
     #       by comparing matching-size files block by block, splitting into subgroups as differences found
 
-    searchpaths = [os.path.abspath(x) for x in args.searchpaths ]
-    master_root = os.path.commonpath( searchpaths )
+    (master_root, searchpaths) = process_searchpaths( args.searchpaths )
     print( "searchpaths: "+str(searchpaths))
     print( "master_root: "+master_root)
     
@@ -545,8 +531,6 @@ def main(argv=None):
     file_id = create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root)
 
     print(filetree)
-
-    #filetree = make_hash_tree( args.searchpaths, file_id, args.verbose )
 
     #all_hashes = filetree2hashes( filetree )
 
