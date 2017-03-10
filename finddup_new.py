@@ -103,13 +103,13 @@ def size2eng(size,k=1024):
 # from filestat return filesize, file mod_time, file blocks
 # return (-1,-1,-1) if discarded file
 def check_stat_file(filepath):
+    extra_info = []
+
     # TODO: I think we want to skip links to files but need to confirm
     # skip symbolic links without commenting
     # TODO: do we still want to record blocks for directory tally?
     # ACTUALLY I THINK WE WANT TO TREAT SYMLINKS LIKE A REGULAR FILE and not
     #   follow what they're pointing to
-    #if os.path.islink(filepath):
-    #    return (-1,-1,-1)
 
     try:
         # don't follow symlinks, just treat them like a regular file
@@ -123,7 +123,7 @@ def check_stat_file(filepath):
         #print("  Error: "+str(type(e)), file=sys.stderr )
         #print("  Error: "+str(e), file=sys.stderr )
         print(str(e), file=sys.stderr )
-        return (-1,-1,-1)
+        return (-1,-1,-1,[type(e),str(e)])
     except:
         e = sys.exc_info()
         # TODO: use stderr, check and later set needs_cr
@@ -134,7 +134,7 @@ def check_stat_file(filepath):
         print("  Error: "+str(e[0]), file=sys.stderr )
         print("  Error: "+str(e[1]), file=sys.stderr )
         print("  Error: "+str(e[2]), file=sys.stderr )
-        return (-1,-1,-1)
+        return (-1,-1,-1,[str(e[0]),str(e[1]),str(e[2])])
 
     this_size = this_filestat.st_size
     this_mod = this_filestat.st_mtime
@@ -142,15 +142,30 @@ def check_stat_file(filepath):
     
     # TODO: experimental
     if IGNORE_FILES.get(os.path.basename(filepath),False):
-        return (-1,-1,this_blocks)
+        this_size = -1
+        this_mod = -1
+        this_blocks = this_blocks
+        extra_info = ['ignore_files']
+    # skip symbolic links without commenting
+    if os.path.islink(filepath):
+        this_size = -1
+        this_mod = -1
+        this_blocks = this_blocks
+        extra_info = ['symlink']
     # skip FIFOs without commenting
     if stat.S_ISFIFO(this_filestat.st_mode):
-        return (-1,-1,-1)
+        this_size = -1
+        this_mod = -1
+        this_blocks = -1
+        extra_info = ['fifo']
     # skip sockets without commenting
     if stat.S_ISSOCK(this_filestat.st_mode):
-        return (-1,-1,-1)
+        this_size = -1
+        this_mod = -1
+        this_blocks = -1
+        extra_info = ['socket']
 
-    return (this_size, this_mod, this_blocks)
+    return (this_size, this_mod, this_blocks, extra_info)
 
 
 # filetree is dict of dicts and items
@@ -180,6 +195,7 @@ def subtree_dict(filetree, root, master_root):
 # make hash with keys being filesize in bytes and value being list of files
 #   that match
 def hash_files_by_size( paths, master_root ):
+    unproc_files = []
     file_size_hash = {}
     filetree = {}
     fileblocks = {}
@@ -195,20 +211,18 @@ def hash_files_by_size( paths, master_root ):
         nonlocal filesdone, filesreport_time, needs_cr
 
         filepath = os.path.join(root,filename)
-        (this_size, this_mod, this_blocks) = check_stat_file(filepath)
+        (this_size,this_mod,this_blocks,extra_info) = check_stat_file(filepath)
         # if valid blocks then record for dir block tally
         if this_blocks != -1:
             fileblocks[filepath] = this_blocks
         if this_size == -1:
+            unproc_files.append([filepath]+extra_info)
             return
 
-        # TODO: moved this from before the above filepath=...still works?
-        # TODO: all files that don't get a valid stat will be ignored for
-        #   directory comparison purposes.  IS THIS OK?
-        # TODO: THIS IS NOT OK if the file is just unreadable.
-        # TODO: THIS IS OK if the file is ignored, pipe, socket
         # set filename branch of filetree to -1 (placeholder, meaning no id)
         # adding to filetree means it will be taken into account when
+        #   determining dir sameness
+        # all ignored files that cause return above will be ignored for
         #   determining dir sameness
         subtree_dict(filetree, root, master_root)[filename] = -1
 
@@ -257,7 +271,7 @@ def hash_files_by_size( paths, master_root ):
     print("\nUnique: %d    "%unique, file=sys.stderr)
     print("Possibly Non-Unique: %d\n"%nonunique, file=sys.stderr)
 
-    return (file_size_hash, filetree, filemodtimes, fileblocks)
+    return (file_size_hash, filetree, filemodtimes, fileblocks, unproc_files)
 
 
 # datachunks_list: list of arrays
@@ -299,12 +313,12 @@ def compare_file_group(filelist, fileblocks):
     # init empty lists to append to
     unique_files = []
     dup_groups = []
-    invalid_files = []
+    unproc_files = []
 
     # check if this is too easy (only one file)
     if len(filelist)==1:
+        #(unique_files,dup_groups,unproc_files)
         return (filelist,[],[])
-        #return (unique_files,dup_groups,invalid_files)
 
     # right now only one prospective group of files, split later if distinct
     #   file groups are found
@@ -348,7 +362,7 @@ def compare_file_group(filelist, fileblocks):
                     #print("  Error: "+str(type(e)), file=sys.stderr )
                     #print("  Error: "+str(e), file=sys.stderr )
                     print(str(e), file=sys.stderr )
-                    invalid_files.append([ thisfile, str(type(e)), str(e) ])
+                    unproc_files.append([thisfile, str(type(e)), str(e) ])
                     # append -1 to signify invalid
                     filedata_list.append(-1)
                     filedata_size_list.append(-1)
@@ -412,26 +426,25 @@ def compare_file_group(filelist, fileblocks):
             # after first pass dramatically increase file reads
             amt_file_read = max_file_read
 
-    return (unique_files,dup_groups,invalid_files)
+    return (unique_files, dup_groups, unproc_files)
 
 
-def compare_files(file_size_hash, fileblocks):
+def compare_files(file_size_hash, fileblocks, unproc_files):
     unique_files = []
     dup_groups = []
-    invalid_files = []
 
     for key in file_size_hash.keys():
-        (this_unique_files,this_dup_groups,this_invalid_files
+        (this_unique_files,this_dup_groups,this_unproc_files
                 ) = compare_file_group(file_size_hash[key], fileblocks)
         unique_files.extend(this_unique_files)
         dup_groups.extend(this_dup_groups)
-        invalid_files.extend(this_invalid_files)
+        unproc_files.extend(this_unproc_files)
 
-    return (dup_groups,unique_files,invalid_files)
+    return (dup_groups, unique_files)
 
 
 # returns file_id dict with id item for every filepath key
-def create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root):
+def create_file_ids(dup_groups, unique_files, filetree, master_root):
     file_id = {}
     idnum = 0;
     for unq_file in unique_files:
@@ -578,6 +591,47 @@ def print_sorted_uniques(unique_files, master_root):
         print(filedir_str)
 
 
+def print_unproc_files(unproc_files):
+    symlinks = [x[0] for x in unproc_files if x[1]=="symlink"]
+    ignored = [x[0] for x in unproc_files if x[1]=="ignore_files"]
+    sockets = [x[0] for x in unproc_files if x[1]=="socket"]
+    fifos = [x[0] for x in unproc_files if x[1]=="fifos"]
+
+    other = [x for x in unproc_files if x[0] not in symlinks]
+    other = [x for x in other if x[0] not in ignored]
+    other = [x for x in other if x[0] not in sockets]
+    other = [x for x in other if x[0] not in fifos]
+
+    print("\n")
+    print("Unprocessed Files")
+    if other:
+        print("\nUnreadable Files (ignored)")
+        for err_file in sorted(other):
+            print("  "+err_file[0])
+            for msg in err_file[1:]:
+                print("    "+msg)
+    if sockets:
+        print("\nSockets (ignored")
+        for err_file in sorted(sockets):
+            print("  "+err_file[0])
+            for msg in err_file[1:]:
+                print("    "+msg)
+    if fifos:
+        print("\nSockets (ignored")
+        for err_file in sorted(sockets):
+            print("  "+err_file[0])
+            for msg in err_file[1:]:
+                print("    "+msg)
+    if symlinks:
+        print("\nSymbolic Links (ignored)")
+        for symlink in sorted(symlinks):
+            print("  "+symlink)
+    if ignored:
+        print("\nIgnored Files")
+        for ignore_file in sorted(ignored):
+            print("  "+ignore_file)
+
+
 def print_header(master_root):
     if master_root != "/":
         print("All file paths referenced from:\n"+master_root)
@@ -590,7 +644,8 @@ def print_header(master_root):
 #   record dir size as sum of children dirs and files
 #   record placeholder for dir of all children files and directories
 # Later,
-#   go back through directories, and update placeholder with file_id instead of names
+#   go back through directories, and update placeholder with file_id instead
+#       of names
 def main(argv=None):
     mytimer = tictoc.Timer()
     mytimer2 = tictoc.Timer()
@@ -605,20 +660,22 @@ def main(argv=None):
     #       by comparing matching-size files block by block, splitting into
     #       subgroups as differences found
 
-    (master_root, searchpaths) = process_searchpaths( args.searchpaths )
+    (master_root, searchpaths) = process_searchpaths(args.searchpaths)
     
     # file_size_hash is dict: keys are file sizes in bytes, items are lists of
     #   filepaths that are all that size (lists are all len > 1)
     # filemodtimes is dict: keys are filepaths, items are modtimes when file
     #   was stat'ed
-    ( file_size_hash, filetree, filemodtimes, fileblocks) = hash_files_by_size( searchpaths, master_root)
+    (file_size_hash, filetree, filemodtimes, fileblocks, unproc_files
+            ) = hash_files_by_size(searchpaths, master_root)
 
     # compare all filegroups by using byte-by-byte comparison to find actually
     #   unique, duplicate
     # dupgroups: list of lists of identical files
     # uniquefiles: list unique files
-    # invalid_files: list problematic (mostly unreadable) files
-    (dup_groups,unique_files,invalid_files) = compare_files(file_size_hash, fileblocks)
+    # unproc_files: list problematic (mostly unreadable) files
+    (dup_groups, unique_files) = compare_files(
+            file_size_hash, fileblocks, unproc_files)
 
     # now we know all of the files that are duplicates and unique
     # we will also determine below which directories are identical in that
@@ -627,7 +684,7 @@ def main(argv=None):
     # for each unique file, make a unique id, identical-data files share id
     #   save unique id to file_id dict (key=filepath, item=id)
     #   save unique id to items of files in filetree hierarchical dict
-    file_id = create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root)
+    file_id = create_file_ids(dup_groups, unique_files, filetree, master_root)
 
     # inventory directories based on identical/non-identical contents
     #   (ignoring names)
@@ -635,11 +692,13 @@ def main(argv=None):
     #   file issues, etc.
     # file_size_hash gives info on file sizes, used to compute directory total
     #   size
-    (unique_dirs, unknown_dirs) = recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups)
+    (unique_dirs, unknown_dirs) = recurse_analyze_filetree(
+            filetree, master_root, fileblocks, dup_groups)
 
     # TODO: We need to have two classes of problem files: 1.) ignored, don't
     #   matter for dir compare and 2.) read error, cause dir compare to be
     #   unknown
+    # TODO: asterisk dirs that are dups if they contain ignored files
     # TODO: double-check which files have changed during the preceding by
     #   stating modtime on all files all over again, put changed files in
     #   "unknown" category?
@@ -663,14 +722,14 @@ def main(argv=None):
     unique_files.extend(unique_dirs)
     print_sorted_uniques(unique_files, master_root)
 
-    # DEBUG
-    print("\nInvalid Files")
-    for inv_file in invalid_files:
-        print(inv_file)
+    # print lists of unprocessed files
+    print_unproc_files(unproc_files)
 
-    print("\nUnknown Dirs")
-    for unk_dir in unknown_dirs:
-        print(unk_dir)
+    # DEBUG
+    if unknown_dirs:
+        print("\nUnknown Dirs")
+        for unk_dir in sorted(unknown_dirs):
+            print(unk_dir)
 
     print("")
     mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
