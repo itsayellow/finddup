@@ -204,11 +204,12 @@ def hash_files_by_size( paths, master_root ):
 
         # TODO: moved this from before the above filepath=...still works?
         # TODO: all files that don't get a valid stat will be ignored for
-        #   directory comparison
-        #       purposes.  IS THIS OK?
+        #   directory comparison purposes.  IS THIS OK?
         # TODO: THIS IS NOT OK if the file is just unreadable.
         # TODO: THIS IS OK if the file is ignored, pipe, socket
         # set filename branch of filetree to -1 (placeholder, meaning no id)
+        # adding to filetree means it will be taken into account when
+        #   determining dir sameness
         subtree_dict(filetree, root, master_root)[filename] = -1
 
         # setdefault returns [] if this_size key is not found
@@ -358,11 +359,6 @@ def compare_file_group(filelist, fileblocks):
                     print("  Error: "+str(e[1]), file=sys.stderr)
                     print("  Error: "+str(e[2]), file=sys.stderr)
                     raise e[0]
-
-                    #invalid_files.append([ thisfile, str(e[0]), str(e[1]) ])
-                    ## append -1 to signify invalid
-                    #filedata_list.append(-1)
-                    #filedata_size_list.append(-1)
 
             # remove invalid files from filelist_group, filedata_list,
             #   filedata_size_list
