@@ -190,9 +190,6 @@ def hash_files_by_size( paths, master_root ):
         # read/write these from hash_files_by_size scope
         nonlocal filesdone, filesreport_time, needs_cr
 
-        # set filename branch of filetree to -1 (placeholder, meaning no id)
-        subtree_dict(filetree, root, master_root)[filename] = -1
-
         filepath = os.path.join(root,filename)
         (this_size, this_mod, this_blocks) = check_stat_file(filepath)
         # if valid blocks then record for dir block tally
@@ -200,6 +197,14 @@ def hash_files_by_size( paths, master_root ):
             fileblocks[filepath] = this_blocks
         if this_size == -1:
             return
+
+        # TODO: moved this from before the above filepath=...still works?
+        # TODO: all files that don't get a valid stat will be ignored for directory comparison
+        #       purposes.  IS THIS OK?
+        # TODO: THIS IS NOT OK if the file is just unreadable.
+        # TODO: THIS IS OK if the file is ignored, pipe, socket
+        # set filename branch of filetree to -1 (placeholder, meaning no id)
+        subtree_dict(filetree, root, master_root)[filename] = -1
 
         # setdefault returns [] if this_size key is not found
         # append as item to file_size_hash [filepath,filemodtime] to check if modified later
@@ -469,6 +474,9 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
         else:
             item = str(subtree[key])
         dir_blocks += fileblocks[os.path.join(name,key)]
+        # DEBUG
+        #if item=="-1":
+        #    print("item=-1: "+os.path.join(name,key))
         itemlist.append(item)
 
     # put file blocks back into fileblocks db
@@ -501,15 +509,16 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups ):
     root_str = recurse_subtree(master_root, filetree, dir_dict, fileblocks)
 
     # unknown dirs show up with key of "-1"
-    unknown_dirs = dir_dict["-1"]
-    del(dir_dict["-1"])
+    unknown_dirs = dir_dict.get("-1",[])
+    if unknown_dirs:
+        del(dir_dict["-1"])
 
     dup_dirs = [dir_dict[x] for x in dir_dict.keys() if len(dir_dict[x]) > 1]
     for i in range(len(dup_dirs)):
         # convert blocks to bytes to compare with dup_files
-        dup_dirs[i] = [fileblocks[dup_dirs[i][0]],dup_dirs[i]]
+        dup_dirs[i] = [ fileblocks[dup_dirs[i][0]], [x+os.path.sep for x in dup_dirs[i]] ]
 
-    unique_dirs = [dir_dict[x][0] for x in dir_dict.keys() if len(dir_dict[x]) == 1]
+    unique_dirs = [dir_dict[x][0]+os.path.sep for x in dir_dict.keys() if len(dir_dict[x]) == 1]
 
     dup_groups.extend(dup_dirs)
     return (unique_dirs,unknown_dirs)
@@ -523,10 +532,13 @@ def print_sorted_dups(dup_groups, master_root):
         for filedir in sorted(dup_group[1]):
             if master_root == "/":
                 # all paths are abspaths
-                print("  %s"%filedir)
+                filedir_str = filedir
             else:
                 # relpath from master_root
-                print("  %s"%os.path.relpath(filedir, start=master_root))
+                filedir_str = os.path.relpath(filedir, start=master_root)
+                if filedir.endswith(os.path.sep):
+                    filedir_str += os.path.sep
+            print("  %s"%filedir_str)
 
 def print_sorted_uniques(unique_files, master_root):
     print("\n")
@@ -534,10 +546,13 @@ def print_sorted_uniques(unique_files, master_root):
     for filedir in sorted(unique_files):
         if master_root == "/":
             # all paths are abspaths
-            print(filedir)
+            filedir_str = filedir
         else:
             # relpath from master_root
-            print(os.path.relpath(filedir, start=master_root))
+            filedir_str = os.path.relpath(filedir, start=master_root)
+            if filedir.endswith(os.path.sep):
+                filedir_str += os.path.sep
+        print(filedir_str)
 
 
 def print_header(master_root):
@@ -592,10 +607,14 @@ def main(argv=None):
     # file_size_hash gives info on file sizes, used to compute directory total size
     (unique_dirs, unknown_dirs) = recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups)
 
+    # TODO: We need to have two classes of problem files: 1.) ignored, don't matter for dir compare
+    #       and 2.) read error, cause dir compare to be unknown
     # TODO: double-check which files have changed during the preceding by stating modtime on all files
     #       all over again, put changed files in "unknown" category?
     # TODO: symbolic links give trouble.  We don't follow them in hierarchical inventor, but in comparing
     #       file data (i.e. open) we do follow them.  Should we os.readlink to compare the contents of links?
+    #       previously, it looks like finddup just ignores all symlinks...?
+    # TODO: for filegroups that have few filemembers, keep all open at same time?
 
     # PRINT REPORT
 
@@ -608,6 +627,15 @@ def main(argv=None):
     # print a sorted (alphabetical) list of unique files and dirs
     unique_files.extend(unique_dirs)
     print_sorted_uniques(unique_files, master_root)
+
+    # DEBUG
+    print("\nInvalid Files")
+    for inv_file in invalid_files:
+        print(inv_file)
+
+    print("\nUnknown Dirs")
+    for unk_dir in unknown_dirs:
+        print(unk_dir)
 
     print("")
     mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
