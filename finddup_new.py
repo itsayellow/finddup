@@ -58,7 +58,7 @@ def process_command_line(argv):
 
     # initialize the parser object:
     parser = argparse.ArgumentParser(
-            description="Find duplicate files in all paths.  Looks at file content, not names or info." )
+            description="Find duplicate files and directories in all paths.  Looks at file content, not names or info." )
 
     # specifying nargs= puts outputs of parser in list (even if nargs=1)
 
@@ -78,23 +78,30 @@ def process_command_line(argv):
     return args
 
 
-def k2prefix( size_kb ):
-    if size_kb > 1024*1024:
-        return "%.3fGB"%(size_kb/1024/1024)
-    elif size_kb > 1024:
-        return "%.3fMB"%(size_kb/1024)
+# copied from durank
+# convert to string with units
+#   use k=1024 for binary (e.g. kB)
+#   use k=1000 for non-binary kW
+def size2eng(size,k=1024):
+    if   size > k**5:
+        sizestr = "%.1fP" % (float(size)/k**5)
+    elif size > k**4:
+        sizestr = "%.1fT" % (float(size)/k**4)
+    elif size > k**3:
+        sizestr = "%.1fG" % (float(size)/k**3)
+    elif size > k**2:
+        sizestr = "%.1fM" % (float(size)/k**2)
+    elif size > k:
+        sizestr = "%.1fk" % (float(size)/k)
     else:
-        return "%.fkB"%(size_kb)
+        sizestr = "%.1g" % (float(size))
+    return sizestr
 
 
 # get filestat on file if possible (i.e. readable), discard if symlink, pipe, fifo
 # from filestat return filesize, file mod_time, file blocks
 # return (-1,-1) if discarded file
 def check_stat_file(filepath):
-    # TODO: experimental
-    if IGNORE_FILES.get(os.path.basename(filepath),False):
-        return (-1,-1,-1)
-
     # TODO: I think we want to skip links to files but need to confirm
     # skip symbolic links without commenting
     # TODO: do we still want to record blocks for directory tally?
@@ -126,6 +133,13 @@ def check_stat_file(filepath):
         print("  Error: "+str(e[2]), file=sys.stderr )
         return (-1,-1,-1)
 
+    this_size = this_filestat.st_size
+    this_mod = this_filestat.st_mtime
+    this_blocks = this_filestat.st_blocks
+    
+    # TODO: experimental
+    if IGNORE_FILES.get(os.path.basename(filepath),False):
+        return (-1,-1,this_blocks)
     # skip FIFOs without commenting
     if stat.S_ISFIFO(this_filestat.st_mode):
         return (-1,-1,-1)
@@ -133,10 +147,6 @@ def check_stat_file(filepath):
     if stat.S_ISSOCK(this_filestat.st_mode):
         return (-1,-1,-1)
 
-    this_size = this_filestat.st_size
-    this_mod = this_filestat.st_mtime
-    this_blocks = this_filestat.st_blocks
-    
     return (this_size, this_mod, this_blocks)
 
 
@@ -185,13 +195,15 @@ def hash_files_by_size( paths, master_root ):
 
         filepath = os.path.join(root,filename)
         (this_size, this_mod, this_blocks) = check_stat_file(filepath)
+        # if valid blocks then record for dir block tally
+        if this_blocks != -1:
+            fileblocks[filepath] = this_blocks
         if this_size == -1:
             return
 
         # setdefault returns [] if this_size key is not found
         # append as item to file_size_hash [filepath,filemodtime] to check if modified later
         file_size_hash.setdefault(this_size,[]).append(filepath)
-        fileblocks[filepath] = this_blocks
         filemodtimes[filepath] = this_mod
 
         filesdone+=1
@@ -507,8 +519,8 @@ def print_sorted_dups(dup_groups, master_root):
     print("")
     print("Duplicate Files/Directories:")
     for dup_group in sorted(dup_groups, reverse=True, key=lambda x: x[0]):
-        print("Duplicate set (%d bytes each)"%(512*dup_group[0]))
-        for filedir in dup_group[1]:
+        print("Duplicate set (%sB each)"%( size2eng(512*dup_group[0]) ))
+        for filedir in sorted(dup_group[1]):
             if master_root == "/":
                 # all paths are abspaths
                 print("  %s"%filedir)
@@ -582,13 +594,15 @@ def main(argv=None):
 
     # TODO: double-check which files have changed during the preceding by stating modtime on all files
     #       all over again, put changed files in "unknown" category?
+    # TODO: symbolic links give trouble.  We don't follow them in hierarchical inventor, but in comparing
+    #       file data (i.e. open) we do follow them.  Should we os.readlink to compare the contents of links?
 
     # PRINT REPORT
 
     # header for report
     print_header(master_root)
 
-    # print a sorted (biggest dir/files first) list of dup groups
+    # print a sorted (biggest dir/files first) list of dup groups, alphabetical within each group
     print_sorted_dups(dup_groups, master_root)
 
     # print a sorted (alphabetical) list of unique files and dirs
