@@ -98,14 +98,16 @@ def size2eng(size,k=1024):
     return sizestr
 
 
-# get filestat on file if possible (i.e. readable), discard if symlink, pipe, fifo
+# get filestat on file if possible (i.e. readable), discard if symlink, pipe,
+#   fifo
 # from filestat return filesize, file mod_time, file blocks
-# return (-1,-1) if discarded file
+# return (-1,-1,-1) if discarded file
 def check_stat_file(filepath):
     # TODO: I think we want to skip links to files but need to confirm
     # skip symbolic links without commenting
     # TODO: do we still want to record blocks for directory tally?
-    # ACTUALLY I THINK WE WANT TO TREAT SYMLINKS LIKE A REGULAR FILE and not follow what they're pointing to
+    # ACTUALLY I THINK WE WANT TO TREAT SYMLINKS LIKE A REGULAR FILE and not
+    #   follow what they're pointing to
     #if os.path.islink(filepath):
     #    return (-1,-1,-1)
 
@@ -117,9 +119,10 @@ def check_stat_file(filepath):
         if needs_cr:
             print("", file=sys.stderr)
             needs_cr = False
-        print("Filestat Error opening:\n"+filepath, file=sys.stderr)
-        print("  Error: "+str(type(e)), file=sys.stderr )
-        print("  Error: "+str(e), file=sys.stderr )
+        #print("Filestat Error opening:\n"+filepath, file=sys.stderr)
+        #print("  Error: "+str(type(e)), file=sys.stderr )
+        #print("  Error: "+str(e), file=sys.stderr )
+        print(str(e), file=sys.stderr )
         return (-1,-1,-1)
     except:
         e = sys.exc_info()
@@ -127,7 +130,7 @@ def check_stat_file(filepath):
         if needs_cr:
             print("", file=sys.stderr)
             needs_cr = False
-        print("Unhandled File Stat on: "+filepath, file=sys.stderr )
+        print("UNHANDLED File Stat on: "+filepath, file=sys.stderr )
         print("  Error: "+str(e[0]), file=sys.stderr )
         print("  Error: "+str(e[1]), file=sys.stderr )
         print("  Error: "+str(e[2]), file=sys.stderr )
@@ -174,7 +177,8 @@ def subtree_dict(filetree, root, master_root):
 
 
 # go through every file hierarchically inside argument paths
-# make hash with keys being filesize in bytes and value being list of files that match
+# make hash with keys being filesize in bytes and value being list of files
+#   that match
 def hash_files_by_size( paths, master_root ):
     file_size_hash = {}
     filetree = {}
@@ -199,7 +203,8 @@ def hash_files_by_size( paths, master_root ):
             return
 
         # TODO: moved this from before the above filepath=...still works?
-        # TODO: all files that don't get a valid stat will be ignored for directory comparison
+        # TODO: all files that don't get a valid stat will be ignored for
+        #   directory comparison
         #       purposes.  IS THIS OK?
         # TODO: THIS IS NOT OK if the file is just unreadable.
         # TODO: THIS IS OK if the file is ignored, pipe, socket
@@ -207,7 +212,8 @@ def hash_files_by_size( paths, master_root ):
         subtree_dict(filetree, root, master_root)[filename] = -1
 
         # setdefault returns [] if this_size key is not found
-        # append as item to file_size_hash [filepath,filemodtime] to check if modified later
+        # append as item to file_size_hash [filepath,filemodtime] to check if
+        #   modified later
         file_size_hash.setdefault(this_size,[]).append(filepath)
         filemodtimes[filepath] = this_mod
 
@@ -254,15 +260,18 @@ def hash_files_by_size( paths, master_root ):
 
 
 # datachunks_list: list of arrays
-# match_groups: list of indicies_match_lists, indicies_match_list is all indicies with identical arrays
+# match_groups: list of indicies_match_lists, indicies_match_list is all
+#   indicies with identical arrays
 def matching_array_groups(datachunks_list):
     match_groups = []
     # copy into remaining chunks
     ungrp_chunk_indicies = range(len(datachunks_list))
    
-    # loop through chunks, looking for matches in unsearched chunks for first item in unsearched chunks
+    # loop through chunks, looking for matches in unsearched chunks for first
+    #   item in unsearched chunks
     #   item will always match itself, may match others
-    #   save all matching indicies for this chunk into list of indicies appended to match_groups
+    #   save all matching indicies for this chunk into list of indicies
+    #       appended to match_groups
     while(ungrp_chunk_indicies): # e.g. while len > 0
         #print(ungrp_chunk_indicies)
         test_idx = ungrp_chunk_indicies[0]
@@ -275,8 +284,8 @@ def matching_array_groups(datachunks_list):
 
 # all files in filelist are of size file_size (in blocks)
 # dup_groups = [
-#                   [file_size1, [identical_file1a, identical_file1b, identical_file1c]],
-#                   [file_size2, [identical_file2a, identical_file2b]]
+#       [file_size1, [identical_file1a, identical_file1b, identical_file1c]],
+#       [file_size2, [identical_file2a, identical_file2b]]
 #               ]
 def compare_file_group(filelist, fileblocks):
     #print('------ compare_file_group -----------')
@@ -296,14 +305,15 @@ def compare_file_group(filelist, fileblocks):
         return (filelist,[],[])
         #return (unique_files,dup_groups,invalid_files)
 
-    # right now only one prospective group of files, split later if distinct file groups are found
+    # right now only one prospective group of files, split later if distinct
+    #   file groups are found
     filelist_groups_next=[filelist]
 
     # initial file position is 0
     filepos = 0
 
-    # TODO: if total files is small enough  (< 100?), keep them all open while reading, close when they are 
-    #       called unique or dup  (Or at very end!)
+    # TODO: if total files is small enough  (< 100?), keep them all open while
+    #   reading, close when they are called unique or dup  (Or at very end!)
     while(filelist_groups_next): # i.e. while len > 0
         filelist_groups = filelist_groups_next[:]
         # reset next groups
@@ -313,26 +323,30 @@ def compare_file_group(filelist, fileblocks):
         #print([len(x) for x in filelist_groups])
 
         # each filelist_group is a possible set of duplicate files
-        # a file is split off from a filelist_group as it is shown to be different from others in group,
-        #   either to a subgroup of matching files or by itself
+        # a file is split off from a filelist_group as it is shown to be
+        #   different from others in group, either to a subgroup of matching
+        #   files or by itself
         for filelist_group in filelist_groups:
             filedata_list = []
             filedata_size_list = []
-            # open files one at a time and close after getting each file's data into filedata_list
+            # open files one at a time and close after getting each file's
+            #   data into filedata_list
             for thisfile in filelist_group:
                 try:
                     with open(thisfile,'rb') as thisfile_fh:
                         thisfile_fh.seek(filepos)
                         this_filedata = thisfile_fh.read(amt_file_read)
                     filedata_list.append(this_filedata)
-                    # filedata_size_list is how many bytes we actually read (may be less than max)
+                    # filedata_size_list is how many bytes we actually read
+                    #   (may be less than max)
                     filedata_size_list.append(len(this_filedata))
                 #except (FileNotFoundError, PermissionError) as e:
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
-                    print("Error opening:\n"+thisfile, file=sys.stderr)
-                    print("  Error: "+str(type(e)), file=sys.stderr )
-                    print("  Error: "+str(e), file=sys.stderr )
+                    #print("Error opening:\n"+thisfile, file=sys.stderr)
+                    #print("  Error: "+str(type(e)), file=sys.stderr )
+                    #print("  Error: "+str(e), file=sys.stderr )
+                    print(str(e), file=sys.stderr )
                     invalid_files.append([ thisfile, str(type(e)), str(e) ])
                     # append -1 to signify invalid
                     filedata_list.append(-1)
@@ -350,7 +364,8 @@ def compare_file_group(filelist, fileblocks):
                     #filedata_list.append(-1)
                     #filedata_size_list.append(-1)
 
-            # remove invalid files from filelist_group, filedata_list, filedata_size_list
+            # remove invalid files from filelist_group, filedata_list,
+            #   filedata_size_list
             invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i]==-1]
             filelist_group = [x for (i,x) in enumerate(filelist_group) if i not in invalid_idxs]
             filedata_list= [x for (i,x) in enumerate(filedata_list) if i not in invalid_idxs]
@@ -364,27 +379,33 @@ def compare_file_group(filelist, fileblocks):
 
             unique_files.extend([ filelist_group[sing_idx_group[0]] for sing_idx_group in single_idx_groups ])
 
-            # we stop reading a file if it is confirmed unique, or if we get to the end of the file
+            # we stop reading a file if it is confirmed unique, or if we get
+            #   to the end of the file
 
-            # for each group > 1 member, see if we need to keep searching it or got to end of files
+            # for each group > 1 member, see if we need to keep searching it
+            #   or got to end of files
             for match_idx_group in match_idx_groups:
                 filedata_sizes_group = [filedata_size_list[i] for i in match_idx_group]
-                # all filedata_sizes in matching group should be equal, so check the first one as representve
+                # all filedata_sizes in matching group should be equal, so
+                #   check the first one as representve
                 if filedata_sizes_group[0] < amt_file_read:
-                    # if entire matching group has less data than we tried to read, we are at end of files
-                    #   and this is a final dupgroup
+                    # if entire matching group has less data than we tried to
+                    #   read, we are at end of files and this is a final
+                    #   dupgroup
                     this_dup_group_list = [filelist_group[i] for i in match_idx_group]
                     this_dup_blocks = fileblocks[this_dup_group_list[0]]
                     dup_groups.append([this_dup_blocks, this_dup_group_list])
                 else:
-                    # if filedata size is amt_file_read then not at end of files, keep reading / checking
+                    # if filedata size is amt_file_read then not at end of
+                    #   files, keep reading / checking
                     filelist_groups_next.append([filelist_group[i] for i in match_idx_group])
 
         # increment file position for reading next time through groups
         filepos = filepos + amt_file_read
 
         if filelist_groups_next: # i.e if non-empty
-            # max file read is total memory to be used divided by num of files in largest group this iter
+            # max file read is total memory to be used divided by num of files
+            #   in largest group this iter
             # total no more than MEM_TO_USE
             max_file_read = MEM_TO_USE // max([len(x) for x in filelist_groups_next])
             #max_file_read = 5 # small for debugging
@@ -451,8 +472,10 @@ def process_searchpaths( searchpaths ):
         for searchpath2 in new_searchpaths:
             test_relpath = os.path.relpath(searchpath1, start=searchpath2)
             if test_relpath != '.' and not test_relpath.startswith('..'):
-                # if '.' : searchpath1 and searchpath2 are same path (search artifact)
-                # if relpath doesn't start with .. , then searchpath1 is subdir of searchpath2
+                # if '.' : searchpath1 and searchpath2 are same path
+                #   (search artifact)
+                # if relpath doesn't start with .. , then searchpath1 is
+                #   subdir of searchpath2
                 remove_searchpath[searchpath1]=True
     for (i,searchpath) in enumerate(new_searchpaths):
         if remove_searchpath.get(searchpath,False):
@@ -470,7 +493,8 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     for key in subtree.keys():
         # key is name of dir/file inside of this dir
         if type(subtree[key]) is dict:
-            item = recurse_subtree(os.path.join(name,key), subtree[key], dir_dict, fileblocks)
+            item = recurse_subtree(
+                    os.path.join(name,key), subtree[key], dir_dict, fileblocks)
         else:
             item = str(subtree[key])
         dir_blocks += fileblocks[os.path.join(name,key)]
@@ -495,17 +519,19 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     return hier_id_str
 
 
-# inventory directories based on identical/non-identical contents (ignoring file/dir names)
+# inventory directories based on identical/non-identical contents (ignoring
+#   file/dir names)
 # dir_dict: key: hash based on dir hierarchical contents, item: dir path
 def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups ):
     dup_dirs = []
     unique_dirs = []
     dir_dict = {}
 
-    # root_str is the string representation of the root of the filetree.  It shouldn't match anything
-    #   else because it is highest
-    # recurse_subtree creates a string representation of every subdir represented in filetree, based on
-    #   the a hierarchical concatenation of the file ids in each subdir's hierarchy of files
+    # root_str is the string representation of the root of the filetree.  It
+    #   shouldn't match anything else because it is highest
+    # recurse_subtree creates a string representation of every subdir
+    #   represented in filetree, based on the a hierarchical concatenation of
+    #   the file ids in each subdir's hierarchy of files
     root_str = recurse_subtree(master_root, filetree, dir_dict, fileblocks)
 
     # unknown dirs show up with key of "-1"
@@ -539,6 +565,7 @@ def print_sorted_dups(dup_groups, master_root):
                 if filedir.endswith(os.path.sep):
                     filedir_str += os.path.sep
             print("  %s"%filedir_str)
+
 
 def print_sorted_uniques(unique_files, master_root):
     print("\n")
@@ -576,52 +603,64 @@ def main(argv=None):
 
     # NEW IDEA:
     #   1. For every file, get: size, mod_time
-    #   2. hash by sizes, each hash size in dict fill with list of all files that size
+    #   2. hash by sizes, each hash size in dict fill with list of all files
+    #       that size
     #   3. go through each hash, deciding which of the list are unique or same
-    #       by comparing matching-size files block by block, splitting into subgroups as differences found
+    #       by comparing matching-size files block by block, splitting into
+    #       subgroups as differences found
 
     (master_root, searchpaths) = process_searchpaths( args.searchpaths )
     
-    # file_size_hash is dict: keys are file sizes in bytes, items are lists of filepaths that
-    #   are all that size (lists are all len > 1)
-    # filemodtimes is dict: keys are filepaths, items are modtimes when file was stat'ed
+    # file_size_hash is dict: keys are file sizes in bytes, items are lists of
+    #   filepaths that are all that size (lists are all len > 1)
+    # filemodtimes is dict: keys are filepaths, items are modtimes when file
+    #   was stat'ed
     ( file_size_hash, filetree, filemodtimes, fileblocks) = hash_files_by_size( searchpaths, master_root)
 
-    # compare all filegroups by using byte-by-byte comparison to find actually unique, duplicate
+    # compare all filegroups by using byte-by-byte comparison to find actually
+    #   unique, duplicate
     # dupgroups: list of lists of identical files
     # uniquefiles: list unique files
     # invalid_files: list problematic (mostly unreadable) files
     (dup_groups,unique_files,invalid_files) = compare_files(file_size_hash, fileblocks)
 
     # now we know all of the files that are duplicates and unique
-    # we will also determine below which directories are identical in that they contain identical
-    #   files and subdirs
+    # we will also determine below which directories are identical in that
+    #   they contain identical files and subdirs
 
     # for each unique file, make a unique id, identical-data files share id
     #   save unique id to file_id dict (key=filepath, item=id)
     #   save unique id to items of files in filetree hierarchical dict
     file_id = create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root)
 
-    # inventory directories based on identical/non-identical contents (ignoring names)
-    # unknown_dirs are any dir that we couldn't check any of the files due to file issues, etc.
-    # file_size_hash gives info on file sizes, used to compute directory total size
+    # inventory directories based on identical/non-identical contents
+    #   (ignoring names)
+    # unknown_dirs are any dir that we couldn't check any of the files due to
+    #   file issues, etc.
+    # file_size_hash gives info on file sizes, used to compute directory total
+    #   size
     (unique_dirs, unknown_dirs) = recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups)
 
-    # TODO: We need to have two classes of problem files: 1.) ignored, don't matter for dir compare
-    #       and 2.) read error, cause dir compare to be unknown
-    # TODO: double-check which files have changed during the preceding by stating modtime on all files
-    #       all over again, put changed files in "unknown" category?
-    # TODO: symbolic links give trouble.  We don't follow them in hierarchical inventor, but in comparing
-    #       file data (i.e. open) we do follow them.  Should we os.readlink to compare the contents of links?
-    #       previously, it looks like finddup just ignores all symlinks...?
-    # TODO: for filegroups that have few filemembers, keep all open at same time?
+    # TODO: We need to have two classes of problem files: 1.) ignored, don't
+    #   matter for dir compare and 2.) read error, cause dir compare to be
+    #   unknown
+    # TODO: double-check which files have changed during the preceding by
+    #   stating modtime on all files all over again, put changed files in
+    #   "unknown" category?
+    # TODO: symbolic links give trouble.  We don't follow them in hierarchical
+    #   inventor, but in comparing file data (i.e. open) we do follow them.
+    #   Should we os.readlink to compare the contents of links?  previously,
+    #   it looks like finddup just ignores all symlinks...?
+    # TODO: for filegroups that have few filemembers, keep all open at same
+    #   time?
 
     # PRINT REPORT
 
     # header for report
     print_header(master_root)
 
-    # print a sorted (biggest dir/files first) list of dup groups, alphabetical within each group
+    # print a sorted (biggest dir/files first) list of dup groups,
+    #   alphabetical within each group
     print_sorted_dups(dup_groups, master_root)
 
     # print a sorted (alphabetical) list of unique files and dirs
