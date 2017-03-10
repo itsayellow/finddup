@@ -435,27 +435,6 @@ def create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_ro
     return file_id
 
 
-# recurse
-# filetree is a dict of dicts
-# treeroot is the top of a tree (don't split it further)
-# root is current root (some of which is treeroot)
-# return a dict
-def return_dict(filetree,treeroot,root):
-    if treeroot == root:
-        # if we've reached the root of the tree, then recursion stops, return
-        #   the dict
-        # if dict doesn't exist, then return empty dict
-        if treeroot not in filetree:
-            filetree[treeroot] = {}
-        return filetree[treeroot]
-    else:
-        (root1,root2) = os.path.split(root)
-        filetree_branch = return_dict( filetree, treeroot, root1)
-        if root2 not in filetree_branch:
-            filetree_branch[root2]={}
-        return filetree_branch[root2]
-
-
 # remove redundant searchpaths
 # find master_root common root for all searchpaths
 def process_searchpaths( searchpaths ):
@@ -481,6 +460,49 @@ def process_searchpaths( searchpaths ):
     return (master_root, new_searchpaths)
 
 
+def recurse_subtree(name, subtree, dir_dict):
+    itemlist = []
+    for key in subtree.keys():
+        if type(subtree[key]) is dict:
+            item = recurse_subtree(os.path.join(name,key), subtree[key], dir_dict)
+        else:
+            item = str(subtree[key])
+        itemlist.append(item)
+    # if any one item is "-1" (unknown file) then this whole directory is "-1"
+    #   in this way we mark every subdir above unknown file as unknown
+    if "-1" in itemlist:
+        hier_id_str = "-1"
+    else:
+        itemlist.sort()
+        hier_id_str = '['+','.join(itemlist)+']'
+
+    print(name+":"+hier_id_str)
+    dir_dict.setdefault(hier_id_str,[]).append(name)
+
+    return hier_id_str
+
+
+# inventory directories based on identical/non-identical contents (ignoring file/dir names)
+def recurse_analyze_filetree(filetree, rootname):
+    dup_dirs = []
+    unique_dirs = []
+    dir_dict = {}
+
+    # root_str is the string representation of the root of the filetree.  It shouldn't match anything
+    #   else because it is highest
+    # recurse_subtree creates a string representation of every subdir represented in filetree, based on
+    #   the a hierarchical concatenation of the file ids in each subdir's hierarchy of files
+    root_str = recurse_subtree(rootname, filetree, dir_dict)
+
+    # unknown dirs show up with key of "-1"
+    unknown_dirs = dir_dict["-1"]
+    del(dir_dict["-1"])
+
+    dup_dirs = [dir_dict[x] for x in dir_dict.keys() if len(dir_dict[x]) > 1]
+    unique_dirs = [dir_dict[x][0] for x in dir_dict.keys() if len(dir_dict[x]) == 1]
+    return (dup_dirs,unique_dirs,unknown_dirs)
+
+
 # IDEA
 # when recursing filetree with os.walk and using fstat, for directories:
 #   record dir fullpath (like file)
@@ -489,7 +511,6 @@ def process_searchpaths( searchpaths ):
 #   record placeholder for dir of all children files and directories
 # Later,
 #   go back through directories, and update placeholder with file_id instead of names
-
 def main(argv=None):
     mytimer = tictoc.Timer()
     mytimer2 = tictoc.Timer()
@@ -530,6 +551,9 @@ def main(argv=None):
     #   save unique id to items of files in filetree hierarchical dict
     file_id = create_file_ids(dup_groups, unique_files, invalid_files, filetree, master_root)
 
+    # inventory directories based on identical/non-identical contents (ignoring names)
+    (dup_dirs,unique_dirs,unknown_dirs) = recurse_analyze_filetree(filetree, master_root)
+    
     print(filetree)
 
     #all_hashes = filetree2hashes( filetree )
@@ -553,6 +577,10 @@ def main(argv=None):
     print("\n\ninvalid_files:")
     print(invalid_files)
     print("")
+    print("\n\ndup_dirs")
+    print(dup_dirs)
+    print("\n\nunique_dirs")
+    print(unique_dirs)
 
     mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
     mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stdout )
