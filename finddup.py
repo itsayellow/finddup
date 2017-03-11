@@ -413,8 +413,8 @@ def main(argv=None):
 
     analyze_hashes( all_hashes )
 
-    mytimer2.eltime_pr("Elapsed time: ", file=sys.stderr )
-    mytimer2.eltime_pr("Elapsed time: ", file=sys.stdout )
+    mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stderr )
+    mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stdout )
     return 0
 
 if __name__ == '__main__':

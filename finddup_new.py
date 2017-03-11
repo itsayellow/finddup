@@ -16,10 +16,11 @@ import os.path
 import sys
 import argparse
 import time
-import subprocess
-import re
-from functools import partial
-import multiprocessing.pool
+import textwrap
+#import subprocess
+#import re
+#from functools import partial
+#import multiprocessing.pool
 import tictoc
 
 # how much total memory bytes to use during comparison of files (Larger is faster up to a point)
@@ -47,6 +48,27 @@ MEM_TO_USE = 1024*1024*1024   # 1GB
 
 # HACK! TODO
 IGNORE_FILES = {".picasa.ini":True,".DS_Store":True,"Thumbs.db":True,"Icon\r":True}
+
+
+class StderrPrinter(object):
+    def __init__(self):
+        self.need_cr = False
+
+    def print(self, text, **prkwargs):
+        if text.startswith('\r'):
+            self.need_cr = False
+        if self.need_cr == True:
+            print("", file=sys.stderr)
+
+        print(text, file=sys.stderr, **prkwargs)
+
+        if prkwargs.get('end','\n')=='' and not text.endswith('\n'):
+            self.need_cr = True
+        else:
+            self.need_cr = False
+
+# Global
+myerr = StderrPrinter()
 
 def process_command_line(argv):
     """
@@ -116,53 +138,52 @@ def check_stat_file(filepath):
         this_filestat = os.stat(filepath, follow_symlinks=False)
     except OSError as e:
         # e.g. FileNotFoundError, PermissionError
-        if needs_cr:
-            print("", file=sys.stderr)
-            needs_cr = False
-        #print("Filestat Error opening:\n"+filepath, file=sys.stderr)
-        #print("  Error: "+str(type(e)), file=sys.stderr )
-        #print("  Error: "+str(e), file=sys.stderr )
+        #myerr.print("Filestat Error opening:\n"+filepath )
+        #myerr.print("  Error: "+str(type(e)))
+        #myerr.print("  Error: "+str(e))
         return (-1,-1,-1,[type(e),str(e)])
     except:
         e = sys.exc_info()
-        # TODO: use stderr, check and later set needs_cr
-        if needs_cr:
-            print("", file=sys.stderr)
-            needs_cr = False
-        print("UNHANDLED File Stat on: "+filepath, file=sys.stderr )
-        print("  Error: "+str(e[0]), file=sys.stderr )
-        print("  Error: "+str(e[1]), file=sys.stderr )
-        print("  Error: "+str(e[2]), file=sys.stderr )
+        myerr.print("UNHANDLED File Stat on: "+filepath)
+        myerr.print("  Error: "+str(e[0]))
+        myerr.print("  Error: "+str(e[1]))
+        myerr.print("  Error: "+str(e[2]))
         return (-1,-1,-1,[str(e[0]),str(e[1]),str(e[2])])
 
     this_size = this_filestat.st_size
     this_mod = this_filestat.st_mtime
     this_blocks = this_filestat.st_blocks
     
-    # TODO: experimental
     if IGNORE_FILES.get(os.path.basename(filepath),False):
+        # TODO: experimental
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
         extra_info = ['ignore_files']
-    # skip symbolic links without commenting
-    if os.path.islink(filepath):
+    elif os.path.islink(filepath):
+        # skip symbolic links without commenting
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
         extra_info = ['symlink']
-    # skip FIFOs without commenting
-    if stat.S_ISFIFO(this_filestat.st_mode):
+    elif stat.S_ISFIFO(this_filestat.st_mode):
+        # skip FIFOs without commenting
         this_size = -1
         this_mod = -1
         this_blocks = -1
         extra_info = ['fifo']
-    # skip sockets without commenting
-    if stat.S_ISSOCK(this_filestat.st_mode):
+        # DEBUG
+        print(filepath+' fifo')
+    elif stat.S_ISSOCK(this_filestat.st_mode):
+        # skip sockets without commenting
         this_size = -1
         this_mod = -1
         this_blocks = -1
         extra_info = ['socket']
+        # DEBUG
+        print(filepath+' socket')
+    else:
+        pass
 
     return (this_size, this_mod, this_blocks, extra_info)
 
@@ -177,9 +198,6 @@ def check_stat_file(filepath):
 # create tree dict hierarchical structure if needed to get to root
 def subtree_dict(filetree, root, master_root):
     # root includes master_root
-    #print( "Item:" )
-    #print( "  root: " + root)
-    #print( "  master_root: " + master_root)
     root_relative = os.path.relpath(root, start=master_root)
     #print( "  root_relative to master_root: " + root_relative)
     subtree = filetree
@@ -200,14 +218,13 @@ def hash_files_by_size( paths, master_root ):
     fileblocks = {}
     filemodtimes = {}
     filesreport_time = time.time()
-    needs_cr = False
     filesdone = 0
 
     #.........................
     # local function to process one file
     def process_file_size():
         # read/write these from hash_files_by_size scope
-        nonlocal filesdone, filesreport_time, needs_cr
+        nonlocal filesdone, filesreport_time
 
         filepath = os.path.join(root,filename)
         (this_size,this_mod,this_blocks,extra_info) = check_stat_file(filepath)
@@ -233,17 +250,13 @@ def hash_files_by_size( paths, master_root ):
 
         filesdone+=1
         if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
-            print( "\r  "+str(filesdone)+" files sized.", end='', file=sys.stderr, flush=True)
+            myerr.print( "\r  "+str(filesdone)+" files sized.", end='', flush=True)
             filesreport_time = time.time()
-            needs_cr = True
     #.........................
 
     # Actual hierarchical file stat processing
     for treeroot in paths:
-        if needs_cr:
-            print("", file=sys.stderr)
-            needs_cr = False
-        print("Starting sizing of: "+treeroot, file=sys.stderr)
+        myerr.print("Starting sizing of: "+treeroot)
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir( treeroot ):
@@ -253,11 +266,11 @@ def hash_files_by_size( paths, master_root ):
                     process_file_size()
         else:
             # this treeroot was a file
+            (root,filename) = os.path.split(treeroot)
             process_file_size()
 
         # print final tally with CR
-        print("\r  "+str(filesdone)+" files sized.", file=sys.stderr)
-        needs_cr = False
+        myerr.print("\r  "+str(filesdone)+" files sized.")
 
     # tally unique, possibly duplicate files
     unique = 0
@@ -267,8 +280,8 @@ def hash_files_by_size( paths, master_root ):
             unique += 1
         else:
             nonunique += len(file_size_hash[key])
-    print("\nUnique: %d    "%unique, file=sys.stderr)
-    print("Possibly Non-Unique: %d\n"%nonunique, file=sys.stderr)
+    myerr.print("\nUnique: %d    "%unique)
+    myerr.print("Possibly Non-Unique: %d\n"%nonunique)
 
     return (file_size_hash, filetree, filemodtimes, fileblocks, unproc_files)
 
@@ -356,17 +369,17 @@ def compare_file_group(filelist, fileblocks):
                     filedata_size_list.append(len(this_filedata))
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
-                    #print(str(e), file=sys.stderr )
+                    #myerr.print(str(e))
                     unproc_files.append([thisfile, str(type(e)), str(e) ])
                     # append -1 to signify invalid
                     filedata_list.append(-1)
                     filedata_size_list.append(-1)
                 except:
                     e = sys.exc_info()
-                    print("UNHANDLED Error opening:\n"+thisfile,file=sys.stderr)
-                    print("  Error: "+str(e[0]), file=sys.stderr)
-                    print("  Error: "+str(e[1]), file=sys.stderr)
-                    print("  Error: "+str(e[2]), file=sys.stderr)
+                    myerr.print("UNHANDLED Error opening:\n"+thisfile)
+                    myerr.print("  Error: "+str(e[0]))
+                    myerr.print("  Error: "+str(e[1]))
+                    myerr.print("  Error: "+str(e[2]))
                     raise e[0]
 
             # remove invalid files from filelist_group, filedata_list,
@@ -429,21 +442,20 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
 
     compare_files_timer = tictoc.Timer()
     compare_files_timer.start()
-    print("Starting comparing file data", file=sys.stderr)
+    myerr.print("Starting comparing file data")
 
-    i=0
+    old_time = 0
     for key in file_size_hash.keys():
         (this_unique_files,this_dup_groups,this_unproc_files
                 ) = compare_file_group(file_size_hash[key], fileblocks)
         unique_files.extend(this_unique_files)
         dup_groups.extend(this_dup_groups)
         unproc_files.extend(this_unproc_files)
-        i+=1
-        if i==10:
-            i=0
+        if compare_files_timer.eltime() > old_time+0.4:
+            old_time = compare_files_timer.eltime()
             compare_files_timer.eltime_pr("\rElapsed: ",end='', file=sys.stderr)
 
-    print("\nFinished comparing file data", file=sys.stderr)
+    myerr.print("\nFinished comparing file data")
 
     return (dup_groups, unique_files)
 
@@ -512,9 +524,6 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
         else:
             item = str(subtree[key])
         dir_blocks += fileblocks[os.path.join(name,key)]
-        # DEBUG
-        #if item=="-1":
-        #    print("item=-1: "+os.path.join(name,key))
         itemlist.append(item)
 
     # put file blocks back into fileblocks db
@@ -614,7 +623,9 @@ def print_unproc_files(unproc_files):
         for err_file in sorted(other):
             print("  "+err_file[0])
             for msg in err_file[1:]:
-                print("    "+msg)
+                err_str = textwrap.fill(
+                        msg, initial_indent=' '*2, subsequent_indent=' '*6)
+                print(err_str)
     if sockets:
         print("\nSockets (ignored)")
         for sock_file in sorted(sockets):
