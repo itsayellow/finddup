@@ -172,16 +172,12 @@ def check_stat_file(filepath):
         this_mod = -1
         this_blocks = -1
         extra_info = ['fifo']
-        # DEBUG
-        print(filepath+' fifo')
     elif stat.S_ISSOCK(this_filestat.st_mode):
         # skip sockets without commenting
         this_size = -1
         this_mod = -1
         this_blocks = -1
         extra_info = ['socket']
-        # DEBUG
-        print(filepath+' socket')
     else:
         pass
 
@@ -632,7 +628,7 @@ def print_unproc_files(unproc_files):
             print("  "+sock_file)
     if fifos:
         print("\nFIFOs (ignored)")
-        for fifo_file in sorted(sockets):
+        for fifo_file in sorted(fifos):
             print("  "+fifo_file)
     if symlinks:
         print("\nSymbolic Links (ignored)")
@@ -746,8 +742,8 @@ def main(argv=None):
             print(unk_dir)
 
     print("")
-    mytimer2.eltime_pr("Elapsed time: ", file=sys.stderr )
-    mytimer2.eltime_pr("Elapsed time: ", file=sys.stdout )
+    mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stderr )
+    mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stdout )
     return 0
 
 if __name__ == '__main__':
