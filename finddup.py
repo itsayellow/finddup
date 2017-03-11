@@ -58,12 +58,12 @@ class StderrPrinter(object):
     def print(self, text, **prkwargs):
         if text.startswith('\r'):
             self.need_cr = False
-        if self.need_cr == True:
+        if self.need_cr:
             print("", file=sys.stderr)
 
         print(text, file=sys.stderr, **prkwargs)
 
-        if prkwargs.get('end','\n')=='' and not text.endswith('\n'):
+        if prkwargs.get('end', '\n') == '' and not text.endswith('\n'):
             self.need_cr = True
         else:
             self.need_cr = False
@@ -78,25 +78,24 @@ def process_command_line(argv):
     Return a 2-tuple: (settings object, args list).
     `argv` is a list of arguments, or `None` for ``sys.argv[1:]``.
     """
-    script_name = argv[0]
     argv = argv[1:]
 
     # initialize the parser object:
     parser = argparse.ArgumentParser(
             description="Find duplicate files and directories in all paths.  "\
-                    "Looks at file content, not names or info." )
+                    "Looks at file content, not names or info.")
 
     # specifying nargs= puts outputs of parser in list (even if nargs=1)
 
     # required arguments
-    parser.add_argument( 'searchpaths', nargs='+',
-            help = "Search path(s) (recursively searched)."
+    parser.add_argument('searchpaths', nargs='+',
+            help="Search path(s) (recursively searched)."
             )
 
     # switches/options:
     parser.add_argument(
         '-v', '--verbose', action='store_true', default=False,
-        help='Verbose status messages.' )
+        help='Verbose status messages.')
 
     #(settings, args) = parser.parse_args(argv)
     args = parser.parse_args(argv)
@@ -108,7 +107,7 @@ def process_command_line(argv):
 # convert to string with units
 #   use k=1024 for binary (e.g. kB)
 #   use k=1000 for non-binary kW
-def size2eng(size,k=1024):
+def size2eng(size, k=1024):
     if   size > k**5:
         sizestr = "%.1fP" % (float(size)/k**5)
     elif size > k**4:
@@ -139,20 +138,20 @@ def check_stat_file(filepath):
         #myerr.print("Filestat Error opening:\n"+filepath )
         #myerr.print("  Error: "+str(type(e)))
         #myerr.print("  Error: "+str(e))
-        return (-1,-1,-1,[type(e),str(e)])
+        return (-1, -1, -1, [type(e), str(e)])
     except:
         e = sys.exc_info()
         myerr.print("UNHANDLED File Stat on: "+filepath)
         myerr.print("  Error: "+str(e[0]))
         myerr.print("  Error: "+str(e[1]))
         myerr.print("  Error: "+str(e[2]))
-        return (-1,-1,-1,[str(e[0]),str(e[1]),str(e[2])])
+        return (-1, -1, -1, [str(e[0]), str(e[1]), str(e[2])])
 
     this_size = this_filestat.st_size
     this_mod = this_filestat.st_mtime
     this_blocks = this_filestat.st_blocks
-    
-    if IGNORE_FILES.get(os.path.basename(filepath),False):
+
+    if IGNORE_FILES.get(os.path.basename(filepath), False):
         # TODO: experimental
         this_size = -1
         this_mod = -1
@@ -195,17 +194,17 @@ def subtree_dict(filetree, root, master_root):
     root_relative = os.path.relpath(root, start=master_root)
     #print( "  root_relative to master_root: " + root_relative)
     subtree = filetree
-    for pathpart in root_relative.split( os.path.sep ):
+    for pathpart in root_relative.split(os.path.sep):
         if pathpart and pathpart != '.':
             # either get pathpart key of subtree or create new one (empty dict)
-            subtree = subtree.setdefault(pathpart,{})
+            subtree = subtree.setdefault(pathpart, {})
     return subtree
 
 
 # go through every file hierarchically inside argument paths
 # make hash with keys being filesize in bytes and value being list of files
 #   that match
-def hash_files_by_size( paths, master_root ):
+def hash_files_by_size(paths, master_root):
     unproc_files = []
     file_size_hash = {}
     filetree = {}
@@ -220,8 +219,9 @@ def hash_files_by_size( paths, master_root ):
         # read/write these from hash_files_by_size scope
         nonlocal filesdone, filesreport_time
 
-        filepath = os.path.join(root,filename)
-        (this_size,this_mod,this_blocks,extra_info) = check_stat_file(filepath)
+        filepath = os.path.join(root, filename)
+        (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
+                filepath)
         # if valid blocks then record for dir block tally
         if this_blocks != -1:
             fileblocks[filepath] = this_blocks
@@ -239,10 +239,10 @@ def hash_files_by_size( paths, master_root ):
         # setdefault returns [] if this_size key is not found
         # append as item to file_size_hash [filepath,filemodtime] to check if
         #   modified later
-        file_size_hash.setdefault(this_size,[]).append(filepath)
+        file_size_hash.setdefault(this_size, []).append(filepath)
         filemodtimes[filepath] = this_mod
 
-        filesdone+=1
+        filesdone += 1
         if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
             myerr.print(
                     "\r  "+str(filesdone)+" files sized.", end='', flush=True)
@@ -254,14 +254,14 @@ def hash_files_by_size( paths, master_root ):
         myerr.print("Starting sizing of: "+treeroot)
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
-        if os.path.isdir( treeroot ):
-            for (root,dirs,files) in os.walk(treeroot):
+        if os.path.isdir(treeroot):
+            for (root, dirs, files) in os.walk(treeroot):
                 # TODO: get modtime on directories too, to see if they change?
                 for filename in files:
                     process_file_size()
         else:
             # this treeroot was a file
-            (root,filename) = os.path.split(treeroot)
+            (root, filename) = os.path.split(treeroot)
             process_file_size()
 
         # print final tally with CR
@@ -270,8 +270,8 @@ def hash_files_by_size( paths, master_root ):
     # tally unique, possibly duplicate files
     unique = 0
     nonunique = 0
-    for key in file_size_hash.keys():
-        if len(file_size_hash[key])==1:
+    for key in file_size_hash:
+        if len(file_size_hash[key]) == 1:
             unique += 1
         else:
             nonunique += len(file_size_hash[key])
@@ -288,13 +288,13 @@ def matching_array_groups(datachunks_list):
     match_groups = []
     # copy into remaining chunks
     ungrp_chunk_indicies = range(len(datachunks_list))
-   
+
     # loop through chunks, looking for matches in unsearched chunks for first
     #   item in unsearched chunks
     #   item will always match itself, may match others
     #   save all matching indicies for this chunk into list of indicies
     #       appended to match_groups
-    while(ungrp_chunk_indicies): # e.g. while len > 0
+    while ungrp_chunk_indicies: # e.g. while len > 0
         test_idx = ungrp_chunk_indicies[0]
 
         matching_indicies = []
@@ -329,20 +329,20 @@ def compare_file_group(filelist, fileblocks):
     unproc_files = []
 
     # check if this is too easy (only one file)
-    if len(filelist)==1:
+    if len(filelist) == 1:
         #(unique_files,dup_groups,unproc_files)
-        return (filelist,[],[])
+        return (filelist, [], [])
 
     # right now only one prospective group of files, split later if distinct
     #   file groups are found
-    filelist_groups_next=[filelist]
+    filelist_groups_next = [filelist]
 
     # initial file position is 0
     filepos = 0
 
     # TODO: if total files is small enough  (< 100?), keep them all open while
     #   reading, close when they are called unique or dup  (Or at very end!)
-    while(filelist_groups_next): # i.e. while len > 0
+    while filelist_groups_next: # i.e. while len > 0
         filelist_groups = filelist_groups_next[:]
         # reset next groups
         filelist_groups_next = []
@@ -361,7 +361,7 @@ def compare_file_group(filelist, fileblocks):
             #   data into filedata_list
             for thisfile in filelist_group:
                 try:
-                    with open(thisfile,'rb') as thisfile_fh:
+                    with open(thisfile, 'rb') as thisfile_fh:
                         thisfile_fh.seek(filepos)
                         this_filedata = thisfile_fh.read(amt_file_read)
                     filedata_list.append(this_filedata)
@@ -371,7 +371,7 @@ def compare_file_group(filelist, fileblocks):
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
                     #myerr.print(str(e))
-                    unproc_files.append([thisfile, str(type(e)), str(e) ])
+                    unproc_files.append([thisfile, str(type(e)), str(e)])
                     # append -1 to signify invalid
                     filedata_list.append(-1)
                     filedata_size_list.append(-1)
@@ -385,19 +385,19 @@ def compare_file_group(filelist, fileblocks):
 
             # remove invalid files from filelist_group, filedata_list,
             #   filedata_size_list
-            invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i]==-1]
-            filelist_group = [x for (i,x) in enumerate(filelist_group) if i not in invalid_idxs]
-            filedata_list = [x for (i,x) in enumerate(filedata_list) if i not in invalid_idxs]
-            filedata_size_list = [x for (i,x) in enumerate(filedata_size_list) if i not in invalid_idxs]
+            invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1]
+            filelist_group = [x for (i, x) in enumerate(filelist_group) if i not in invalid_idxs]
+            filedata_list = [x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs]
+            filedata_size_list = [x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs]
 
             # get groups of indicies with datachunks that match each other
             match_idx_groups = matching_array_groups(filedata_list)
 
-            single_idx_groups = [ x for x in match_idx_groups if len(x)==1 ]
-            match_idx_groups = [ x for x in match_idx_groups if x not in single_idx_groups ]
+            single_idx_groups = [x for x in match_idx_groups if len(x) == 1]
+            match_idx_groups = [x for x in match_idx_groups if x not in single_idx_groups]
 
             unique_files.extend(
-                    [ filelist_group[sing_idx_group[0]] for sing_idx_group in single_idx_groups ])
+                    [filelist_group[sing_idx_group[0]] for sing_idx_group in single_idx_groups])
 
             # we stop reading a file if it is confirmed unique, or if we get
             #   to the end of the file
@@ -433,7 +433,7 @@ def compare_file_group(filelist, fileblocks):
             if max_file_read < 5:
                 raise Exception(
                         "compare_file_group: too many files to compare: "+str(len(filelist)))
-        
+
             # after first pass dramatically increase file reads
             amt_file_read = max_file_read
 
@@ -450,14 +450,14 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
 
     old_time = 0
     for key in file_size_hash.keys():
-        (this_unique_files,this_dup_groups,this_unproc_files
+        (this_unique_files, this_dup_groups, this_unproc_files
                 ) = compare_file_group(file_size_hash[key], fileblocks)
         unique_files.extend(this_unique_files)
         dup_groups.extend(this_dup_groups)
         unproc_files.extend(this_unproc_files)
         if compare_files_timer.eltime() > old_time+0.4:
             old_time = compare_files_timer.eltime()
-            compare_files_timer.eltime_pr("\rElapsed: ",end='', file=sys.stderr)
+            compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
 
     myerr.print("\nFinished comparing file data")
 
@@ -469,12 +469,12 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
 # file_ids for two files are the same if the files' data are the same
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
     file_id = {}
-    idnum = 0;
+    idnum = 0
     for unq_file in unique_files:
         file_id[unq_file] = idnum
 
         # add id to tree
-        (unq_dir,unq_file) = os.path.split(unq_file)
+        (unq_dir, unq_file) = os.path.split(unq_file)
         subtree_dict(filetree, unq_dir, master_root)[unq_file] = idnum
 
         idnum += 1
@@ -483,7 +483,7 @@ def create_file_ids(dup_groups, unique_files, filetree, master_root):
             file_id[dup_file] = idnum
 
             # add id to tree
-            (dup_dir,dup_file) = os.path.split(dup_file)
+            (dup_dir, dup_file) = os.path.split(dup_file)
             subtree_dict(filetree, dup_dir, master_root)[dup_file] = idnum
         idnum += 1
 
@@ -492,11 +492,11 @@ def create_file_ids(dup_groups, unique_files, filetree, master_root):
 
 # remove redundant searchpaths
 # find master_root common root for all searchpaths
-def process_searchpaths( searchpaths ):
+def process_searchpaths(searchpaths):
     remove_searchpath = {}
 
     # convert to absolute paths
-    new_searchpaths = [os.path.abspath(x) for x in searchpaths ]
+    new_searchpaths = [os.path.abspath(x) for x in searchpaths]
     # eliminate duplicate paths
     new_searchpaths = list(set(new_searchpaths))
     # search for paths that are subdir of another path, eliminate them
@@ -508,12 +508,12 @@ def process_searchpaths( searchpaths ):
                 #   (search artifact)
                 # if relpath doesn't start with .. , then searchpath1 is
                 #   subdir of searchpath2
-                remove_searchpath[searchpath1]=True
-    for (i,searchpath) in enumerate(new_searchpaths):
-        if remove_searchpath.get(searchpath,False):
-            del(new_searchpaths[i])
-        
-    master_root = os.path.commonpath( new_searchpaths )
+                remove_searchpath[searchpath1] = True
+    for (i, searchpath) in enumerate(new_searchpaths):
+        if remove_searchpath.get(searchpath, False):
+            del new_searchpaths[i]
+
+    master_root = os.path.commonpath(new_searchpaths)
     return (master_root, new_searchpaths)
 
 
@@ -524,12 +524,12 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     dir_blocks = 0
     for key in subtree.keys():
         # key is name of dir/file inside of this dir
-        if type(subtree[key]) is dict:
+        if isinstance(subtree[key], dict):
             item = recurse_subtree(
-                    os.path.join(name,key), subtree[key], dir_dict, fileblocks)
+                    os.path.join(name, key), subtree[key], dir_dict, fileblocks)
         else:
             item = str(subtree[key])
-        dir_blocks += fileblocks[os.path.join(name,key)]
+        dir_blocks += fileblocks[os.path.join(name, key)]
         itemlist.append(item)
 
     # put file blocks back into fileblocks db
@@ -543,7 +543,7 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
         itemlist.sort()
         hier_id_str = '['+','.join(itemlist)+']'
 
-    dir_dict.setdefault(hier_id_str,[]).append(name)
+    dir_dict.setdefault(hier_id_str, []).append(name)
 
     return hier_id_str
 
@@ -551,39 +551,38 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
 # inventory directories based on identical/non-identical contents (ignoring
 #   file/dir names)
 # dir_dict: key: hash based on dir hierarchical contents, item: dir path
-def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups ):
+def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
     dup_dirs = []
     unique_dirs = []
     dir_dict = {}
 
-    # root_str is the string representation of the root of the filetree.  It
-    #   shouldn't match anything else because it is highest
     # recurse_subtree creates a string representation of every subdir
     #   represented in filetree, based on the a hierarchical concatenation of
     #   the file ids in each subdir's hierarchy of files
-    root_str = recurse_subtree(master_root, filetree, dir_dict, fileblocks)
+    recurse_subtree(master_root, filetree, dir_dict, fileblocks)
 
     # unknown dirs show up with key of "-1"
-    unknown_dirs = dir_dict.get("-1",[])
+    unknown_dirs = dir_dict.get("-1", [])
     if unknown_dirs:
-        del(dir_dict["-1"])
+        del dir_dict["-1"]
 
     dup_dirs = [dir_dict[x] for x in dir_dict.keys() if len(dir_dict[x]) > 1]
+    # TODO: use regular for instead of i?
     for i in range(len(dup_dirs)):
         # convert blocks to bytes to compare with dup_files
-        dup_dirs[i] = [ fileblocks[dup_dirs[i][0]], [x+os.path.sep for x in dup_dirs[i]] ]
+        dup_dirs[i] = [fileblocks[dup_dirs[i][0]], [x+os.path.sep for x in dup_dirs[i]]]
 
     unique_dirs = [dir_dict[x][0]+os.path.sep for x in dir_dict.keys() if len(dir_dict[x]) == 1]
 
     dup_groups.extend(dup_dirs)
-    return (unique_dirs,unknown_dirs)
+    return (unique_dirs, unknown_dirs)
 
 
 def print_sorted_dups(dup_groups, master_root):
     print("")
     print("Duplicate Files/Directories:")
     for dup_group in sorted(dup_groups, reverse=True, key=lambda x: x[0]):
-        print("Duplicate set (%sB each)"%( size2eng(512*dup_group[0]) ))
+        print("Duplicate set (%sB each)"%(size2eng(512*dup_group[0])))
         for filedir in sorted(dup_group[1]):
             if master_root == "/":
                 # all paths are abspaths
@@ -612,10 +611,10 @@ def print_sorted_uniques(unique_files, master_root):
 
 
 def print_unproc_files(unproc_files):
-    symlinks = [x[0] for x in unproc_files if x[1]=="symlink"]
-    ignored = [x[0] for x in unproc_files if x[1]=="ignore_files"]
-    sockets = [x[0] for x in unproc_files if x[1]=="socket"]
-    fifos = [x[0] for x in unproc_files if x[1]=="fifo"]
+    symlinks = [x[0] for x in unproc_files if x[1] == "symlink"]
+    ignored = [x[0] for x in unproc_files if x[1] == "ignore_files"]
+    sockets = [x[0] for x in unproc_files if x[1] == "socket"]
+    fifos = [x[0] for x in unproc_files if x[1] == "fifo"]
 
     other = [x for x in unproc_files if x[0] not in symlinks]
     other = [x for x in other if x[0] not in ignored]
@@ -670,13 +669,12 @@ def print_unknown_dirs(unknown_dirs):
 #       subgroups as differences found
 def main(argv=None):
     mytimer = tictoc.Timer()
-    mytimer2 = tictoc.Timer()
-    mytimer2.start()
+    mytimer.start()
     args = process_command_line(argv)
 
     # eliminate duplicates, and paths that are sub-paths of other searchpaths
     (master_root, searchpaths) = process_searchpaths(args.searchpaths)
-    
+
     # file_size_hash is dict: keys are file sizes in bytes, items are lists of
     #   filepaths that are all that size (lists are all len > 1)
     # filemodtimes is dict: keys are filepaths, items are modtimes when file
@@ -729,8 +727,8 @@ def main(argv=None):
     print_unknown_dirs(unknown_dirs)
 
     print("")
-    mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stderr )
-    mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stdout )
+    mytimer.eltime_pr("Total Elapsed time: ", file=sys.stderr)
+    mytimer.eltime_pr("Total Elapsed time: ", file=sys.stdout)
     return 0
 
 if __name__ == '__main__':
