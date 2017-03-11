@@ -636,7 +636,7 @@ def print_header(master_root):
         print("All file paths referenced from:\n"+master_root)
 
 
-def print_unknown_dirs(unknown_dirs)
+def print_unknown_dirs(unknown_dirs):
     if unknown_dirs:
         print("\nUnknown Dirs")
         for unk_dir in sorted(unknown_dirs):
