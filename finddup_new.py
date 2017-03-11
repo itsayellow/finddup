@@ -122,7 +122,6 @@ def check_stat_file(filepath):
         #print("Filestat Error opening:\n"+filepath, file=sys.stderr)
         #print("  Error: "+str(type(e)), file=sys.stderr )
         #print("  Error: "+str(e), file=sys.stderr )
-        print(str(e), file=sys.stderr )
         return (-1,-1,-1,[type(e),str(e)])
     except:
         e = sys.exc_info()
@@ -355,20 +354,16 @@ def compare_file_group(filelist, fileblocks):
                     # filedata_size_list is how many bytes we actually read
                     #   (may be less than max)
                     filedata_size_list.append(len(this_filedata))
-                #except (FileNotFoundError, PermissionError) as e:
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
-                    #print("Error opening:\n"+thisfile, file=sys.stderr)
-                    #print("  Error: "+str(type(e)), file=sys.stderr )
-                    #print("  Error: "+str(e), file=sys.stderr )
-                    print(str(e), file=sys.stderr )
+                    #print(str(e), file=sys.stderr )
                     unproc_files.append([thisfile, str(type(e)), str(e) ])
                     # append -1 to signify invalid
                     filedata_list.append(-1)
                     filedata_size_list.append(-1)
                 except:
                     e = sys.exc_info()
-                    print("UNHANDLED Error opening:\n"+thisfile, file=sys.stderr)
+                    print("UNHANDLED Error opening:\n"+thisfile,file=sys.stderr)
                     print("  Error: "+str(e[0]), file=sys.stderr)
                     print("  Error: "+str(e[1]), file=sys.stderr)
                     print("  Error: "+str(e[2]), file=sys.stderr)
@@ -421,7 +416,6 @@ def compare_file_group(filelist, fileblocks):
             #max_file_read = 5 # small for debugging
             if max_file_read < 5:
                 raise Exception("compare_file_group: too many files to compare: "+str(len(filelist)))
-            #print("max_file_read = "+str(max_file_read))
         
             # after first pass dramatically increase file reads
             amt_file_read = max_file_read
@@ -433,12 +427,23 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
     unique_files = []
     dup_groups = []
 
+    compare_files_timer = tictoc.Timer()
+    compare_files_timer.start()
+    print("Starting comparing file data", file=sys.stderr)
+
+    i=0
     for key in file_size_hash.keys():
         (this_unique_files,this_dup_groups,this_unproc_files
                 ) = compare_file_group(file_size_hash[key], fileblocks)
         unique_files.extend(this_unique_files)
         dup_groups.extend(this_dup_groups)
         unproc_files.extend(this_unproc_files)
+        i+=1
+        if i==10:
+            i=0
+            compare_files_timer.eltime_pr("\rElapsed: ",end='', file=sys.stderr)
+
+    print("\nFinished comparing file data", file=sys.stderr)
 
     return (dup_groups, unique_files)
 
@@ -595,7 +600,7 @@ def print_unproc_files(unproc_files):
     symlinks = [x[0] for x in unproc_files if x[1]=="symlink"]
     ignored = [x[0] for x in unproc_files if x[1]=="ignore_files"]
     sockets = [x[0] for x in unproc_files if x[1]=="socket"]
-    fifos = [x[0] for x in unproc_files if x[1]=="fifos"]
+    fifos = [x[0] for x in unproc_files if x[1]=="fifo"]
 
     other = [x for x in unproc_files if x[0] not in symlinks]
     other = [x for x in other if x[0] not in ignored]
@@ -611,17 +616,13 @@ def print_unproc_files(unproc_files):
             for msg in err_file[1:]:
                 print("    "+msg)
     if sockets:
-        print("\nSockets (ignored")
-        for err_file in sorted(sockets):
-            print("  "+err_file[0])
-            for msg in err_file[1:]:
-                print("    "+msg)
+        print("\nSockets (ignored)")
+        for sock_file in sorted(sockets):
+            print("  "+sock_file)
     if fifos:
-        print("\nSockets (ignored")
-        for err_file in sorted(sockets):
-            print("  "+err_file[0])
-            for msg in err_file[1:]:
-                print("    "+msg)
+        print("\nFIFOs (ignored)")
+        for fifo_file in sorted(sockets):
+            print("  "+fifo_file)
     if symlinks:
         print("\nSymbolic Links (ignored)")
         for symlink in sorted(symlinks):
@@ -708,6 +709,8 @@ def main(argv=None):
     #   it looks like finddup just ignores all symlinks...?
     # TODO: for filegroups that have few filemembers, keep all open at same
     #   time?
+    # TODO: could check if duplicate files have same inode? (hard link)?
+    #   maybe too esoteric
 
     # PRINT REPORT
 
@@ -732,8 +735,8 @@ def main(argv=None):
             print(unk_dir)
 
     print("")
-    mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
-    mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stdout )
+    mytimer2.eltime_pr("Elapsed time: ", file=sys.stderr )
+    mytimer2.eltime_pr("Elapsed time: ", file=sys.stdout )
     return 0
 
 if __name__ == '__main__':

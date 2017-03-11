@@ -12,7 +12,7 @@ class Timer:
     def eltime(self):
         return time.time() - self.start_time
 
-    def eltime_pr(self, outstring, prfile=sys.stderr):
+    def eltime_pr(self, outstring, **print_args):
         eltime = time.time() - self.start_time
         elapsed = str(datetime.timedelta(seconds=int(eltime )))
-        print( outstring + elapsed, file=prfile )
+        print( outstring + elapsed, **print_args)

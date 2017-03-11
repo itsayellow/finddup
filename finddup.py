@@ -401,7 +401,7 @@ def main(argv=None):
     # testing
     mytimer.start()
     all_files_hashes = get_all_hashes( args.searchpaths, uniquefiles, args.verbose )
-    mytimer.eltime_pr("get_all_hashes: ", prfile=sys.stderr )
+    mytimer.eltime_pr("get_all_hashes: ", file=sys.stderr )
     #print( "all_files_hashes" )
     #print( all_files_hashes )
 
@@ -413,8 +413,8 @@ def main(argv=None):
 
     analyze_hashes( all_hashes )
 
-    mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stderr )
-    mytimer2.eltime_pr("Elapsed time: ", prfile=sys.stdout )
+    mytimer2.eltime_pr("Elapsed time: ", file=sys.stderr )
+    mytimer2.eltime_pr("Elapsed time: ", file=sys.stdout )
     return 0
 
 if __name__ == '__main__':
