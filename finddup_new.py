@@ -42,7 +42,12 @@ MEM_TO_USE = 1024*1024*1024   # 1GB
 
 
 # HACK! TODO
-IGNORE_FILES = {".picasa.ini":True,".DS_Store":True,"Thumbs.db":True,"Icon\r":True}
+IGNORE_FILES = {
+        ".picasa.ini":True,
+        ".DS_Store":True,
+        "Thumbs.db":True,
+        " Icon\r":True
+        }
 
 
 class StderrPrinter(object):
@@ -77,7 +82,8 @@ def process_command_line(argv):
 
     # initialize the parser object:
     parser = argparse.ArgumentParser(
-            description="Find duplicate files and directories in all paths.  Looks at file content, not names or info." )
+            description="Find duplicate files and directories in all paths.  "\
+                    "Looks at file content, not names or info." )
 
     # specifying nargs= puts outputs of parser in list (even if nargs=1)
 
@@ -237,7 +243,8 @@ def hash_files_by_size( paths, master_root ):
 
         filesdone+=1
         if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
-            myerr.print( "\r  "+str(filesdone)+" files sized.", end='', flush=True)
+            myerr.print(
+                    "\r  "+str(filesdone)+" files sized.", end='', flush=True)
             filesreport_time = time.time()
     #.........................
 
@@ -289,7 +296,11 @@ def matching_array_groups(datachunks_list):
     while(ungrp_chunk_indicies): # e.g. while len > 0
         #print(ungrp_chunk_indicies)
         test_idx = ungrp_chunk_indicies[0]
-        matching_indicies = [i for i in ungrp_chunk_indicies if datachunks_list[i]==datachunks_list[test_idx]]
+        #matching_indicies = [i for i in ungrp_chunk_indicies if datachunks_list[i]==datachunks_list[test_idx]]
+        matching_indicies = []
+        for i in ungrp_chunk_indicies:
+            if datachunks_list[i] == datachunks_list[test_idx]:
+                matching_indicies.append(i)
         match_groups.append(matching_indicies)
         ungrp_chunk_indicies = [x for x in ungrp_chunk_indicies if x not in matching_indicies]
 
@@ -303,7 +314,8 @@ def matching_array_groups(datachunks_list):
 #               ]
 def compare_file_group(filelist, fileblocks):
     #print('------ compare_file_group -----------')
-    max_files_open = 1 # TODO: we can optimize by allowing multiple files open at the same time
+    # TODO: we can optimize by allowing multiple files open at the same time
+    max_files_open = 1
 
     # amt_file_read starts small on first pass (most files will be caught)
     #   later it will be upped to max_file_read for next passes
@@ -382,7 +394,8 @@ def compare_file_group(filelist, fileblocks):
             single_idx_groups = [ x for x in match_idx_groups if len(x)==1 ]
             match_idx_groups = [ x for x in match_idx_groups if x not in single_idx_groups ]
 
-            unique_files.extend([ filelist_group[sing_idx_group[0]] for sing_idx_group in single_idx_groups ])
+            unique_files.extend(
+                    [ filelist_group[sing_idx_group[0]] for sing_idx_group in single_idx_groups ])
 
             # we stop reading a file if it is confirmed unique, or if we get
             #   to the end of the file
@@ -403,7 +416,8 @@ def compare_file_group(filelist, fileblocks):
                 else:
                     # if filedata size is amt_file_read then not at end of
                     #   files, keep reading / checking
-                    filelist_groups_next.append([filelist_group[i] for i in match_idx_group])
+                    filelist_groups_next.append(
+                            [filelist_group[i] for i in match_idx_group])
 
         # increment file position for reading next time through groups
         filepos = filepos + amt_file_read
@@ -415,7 +429,8 @@ def compare_file_group(filelist, fileblocks):
             max_file_read = MEM_TO_USE // max([len(x) for x in filelist_groups_next])
             #max_file_read = 5 # small for debugging
             if max_file_read < 5:
-                raise Exception("compare_file_group: too many files to compare: "+str(len(filelist)))
+                raise Exception(
+                        "compare_file_group: too many files to compare: "+str(len(filelist)))
         
             # after first pass dramatically increase file reads
             amt_file_read = max_file_read
