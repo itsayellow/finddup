@@ -35,7 +35,8 @@ import textwrap
 import tictoc
 
 
-# how much total memory bytes to use during comparison of files (Larger is faster up to a point)
+# how much total memory bytes to use during comparison of files
+#   (Larger is faster up to a point)
 MEM_TO_USE = 512*1024*1024    # 512MB
 MEM_TO_USE = 2*1024*1024*1024 # 2GB
 MEM_TO_USE = 1024*1024*1024   # 1GB
@@ -294,15 +295,16 @@ def matching_array_groups(datachunks_list):
     #   save all matching indicies for this chunk into list of indicies
     #       appended to match_groups
     while(ungrp_chunk_indicies): # e.g. while len > 0
-        #print(ungrp_chunk_indicies)
         test_idx = ungrp_chunk_indicies[0]
-        #matching_indicies = [i for i in ungrp_chunk_indicies if datachunks_list[i]==datachunks_list[test_idx]]
+
         matching_indicies = []
         for i in ungrp_chunk_indicies:
             if datachunks_list[i] == datachunks_list[test_idx]:
                 matching_indicies.append(i)
+
         match_groups.append(matching_indicies)
-        ungrp_chunk_indicies = [x for x in ungrp_chunk_indicies if x not in matching_indicies]
+        ungrp_chunk_indicies = [
+                x for x in ungrp_chunk_indicies if x not in matching_indicies]
 
     return match_groups
 
@@ -385,8 +387,8 @@ def compare_file_group(filelist, fileblocks):
             #   filedata_size_list
             invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i]==-1]
             filelist_group = [x for (i,x) in enumerate(filelist_group) if i not in invalid_idxs]
-            filedata_list= [x for (i,x) in enumerate(filedata_list) if i not in invalid_idxs]
-            filedata_size_list= [x for (i,x) in enumerate(filedata_size_list) if i not in invalid_idxs]
+            filedata_list = [x for (i,x) in enumerate(filedata_list) if i not in invalid_idxs]
+            filedata_size_list = [x for (i,x) in enumerate(filedata_size_list) if i not in invalid_idxs]
 
             # get groups of indicies with datachunks that match each other
             match_idx_groups = matching_array_groups(filedata_list)
@@ -463,6 +465,8 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
 
 
 # returns file_id dict with id item for every filepath key
+# each file_id is unique for each file with unique data
+# file_ids for two files are the same if the files' data are the same
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
     file_id = {}
     idnum = 0;
@@ -701,8 +705,7 @@ def main(argv=None):
     #   (ignoring names)
     # unknown_dirs are any dir that we couldn't check any of the files due to
     #   file issues, etc.
-    # file_size_hash gives info on file sizes, used to compute directory total
-    #   size
+    # fileblocks gives info on file sizes, used to compute directory total size
     (unique_dirs, unknown_dirs) = recurse_analyze_filetree(
             filetree, master_root, fileblocks, dup_groups)
 
