@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 #
-# finddup - find duplicate files even if they have different names
+# finddup - find duplicate files, dirs even if they have different names
 #               searching throughout all paths
 
-# TODO: ignore files, like .DS_Store that don't really affect matching
-#       (maybe in .finddup/ignore ? )
+# TODO: We need to have two classes of problem files: 1.) ignored, don't
+#   matter for dir compare and 2.) read error, cause dir compare to be
+#   unknown
+# TODO: asterisk dirs that are dups if they contain ignored files
+# TODO: double-check which files have changed during the preceding by
+#   stating modtime on all files all over again, put changed files in
+#   "unknown" category?
+# TODO: for filegroups that have few filemembers, keep all open at same
+#   time?
 # TODO: nice to know if a directory contains only matching files, even if that
 #   directory doesn't match another directory completely
 #     e.g. DIR1: fileA, fileB
 #          DIR2: fileA, fileB, fileC
 #     still might want to delete DIR1 even though it doesn't match exactly DIR2
+# TODO: could check if duplicate files have same inode? (hard link)?
+#   maybe too esoteric
+
 import os
 import stat
 import os.path
@@ -23,28 +33,12 @@ import textwrap
 #import multiprocessing.pool
 import tictoc
 
+
 # how much total memory bytes to use during comparison of files (Larger is faster up to a point)
 MEM_TO_USE = 512*1024*1024    # 512MB
 MEM_TO_USE = 2*1024*1024*1024 # 2GB
 MEM_TO_USE = 1024*1024*1024   # 1GB
 
-#  dir2/file3
-#  dir2/dir1
-#  dir2/dir1/file1
-#  dir2/dir1/file2
-#file1 = 0923
-#file2 = 3492
-#file3 = 7103
-#dir1 = [09233492]
-#dir2 = [7103[09233492]]
-#>>> a['dir2']['dir1']['file1']=923
-#>>> a['dir2']['dir1']['file1']='0923'
-#>>> a['dir2']['dir1']['file2']='3492'
-#>>> a['dir2']['file3']='7103'
-#>>> a
-#{'dir2': {'file3': '7103', 'dir1': {'file1': '0923', 'file2': '3492'}}}
-#
-# return_hash('dir2/dir1')['file1'] - '0923'
 
 # HACK! TODO
 IGNORE_FILES = {".picasa.ini":True,".DS_Store":True,"Thumbs.db":True,"Icon\r":True}
@@ -67,8 +61,10 @@ class StderrPrinter(object):
         else:
             self.need_cr = False
 
+
 # Global
 myerr = StderrPrinter()
+
 
 def process_command_line(argv):
     """
@@ -126,12 +122,6 @@ def size2eng(size,k=1024):
 # return (-1,-1,-1) if discarded file
 def check_stat_file(filepath):
     extra_info = []
-
-    # TODO: I think we want to skip links to files but need to confirm
-    # skip symbolic links without commenting
-    # TODO: do we still want to record blocks for directory tally?
-    # ACTUALLY I THINK WE WANT TO TREAT SYMLINKS LIKE A REGULAR FILE and not
-    #   follow what they're pointing to
 
     try:
         # don't follow symlinks, just treat them like a regular file
@@ -645,29 +635,26 @@ def print_header(master_root):
         print("All file paths referenced from:\n"+master_root)
 
 
-# IDEA
-# when recursing filetree with os.walk and using fstat, for directories:
-#   record dir fullpath (like file)
-#   record dir mod_time
-#   record dir size as sum of children dirs and files
-#   record placeholder for dir of all children files and directories
-# Later,
-#   go back through directories, and update placeholder with file_id instead
-#       of names
+def print_unknown_dirs(unknown_dirs)
+    if unknown_dirs:
+        print("\nUnknown Dirs")
+        for unk_dir in sorted(unknown_dirs):
+            print(unk_dir)
+
+
+#   1. For every file, get: size, mod_time
+#   2. hash by sizes, each hash size in dict fill with list of all files
+#       that size
+#   3. go through each hash, deciding which of the list are unique or same
+#       by comparing matching-size files chunk by chunk, splitting into
+#       subgroups as differences found
 def main(argv=None):
     mytimer = tictoc.Timer()
     mytimer2 = tictoc.Timer()
     mytimer2.start()
     args = process_command_line(argv)
 
-    # NEW IDEA:
-    #   1. For every file, get: size, mod_time
-    #   2. hash by sizes, each hash size in dict fill with list of all files
-    #       that size
-    #   3. go through each hash, deciding which of the list are unique or same
-    #       by comparing matching-size files block by block, splitting into
-    #       subgroups as differences found
-
+    # eliminate duplicates, and paths that are sub-paths of other searchpaths
     (master_root, searchpaths) = process_searchpaths(args.searchpaths)
     
     # file_size_hash is dict: keys are file sizes in bytes, items are lists of
@@ -703,22 +690,6 @@ def main(argv=None):
     (unique_dirs, unknown_dirs) = recurse_analyze_filetree(
             filetree, master_root, fileblocks, dup_groups)
 
-    # TODO: We need to have two classes of problem files: 1.) ignored, don't
-    #   matter for dir compare and 2.) read error, cause dir compare to be
-    #   unknown
-    # TODO: asterisk dirs that are dups if they contain ignored files
-    # TODO: double-check which files have changed during the preceding by
-    #   stating modtime on all files all over again, put changed files in
-    #   "unknown" category?
-    # TODO: symbolic links give trouble.  We don't follow them in hierarchical
-    #   inventor, but in comparing file data (i.e. open) we do follow them.
-    #   Should we os.readlink to compare the contents of links?  previously,
-    #   it looks like finddup just ignores all symlinks...?
-    # TODO: for filegroups that have few filemembers, keep all open at same
-    #   time?
-    # TODO: could check if duplicate files have same inode? (hard link)?
-    #   maybe too esoteric
-
     # PRINT REPORT
 
     # header for report
@@ -735,11 +706,8 @@ def main(argv=None):
     # print lists of unprocessed files
     print_unproc_files(unproc_files)
 
-    # DEBUG
-    if unknown_dirs:
-        print("\nUnknown Dirs")
-        for unk_dir in sorted(unknown_dirs):
-            print(unk_dir)
+    # print unknown status directories
+    print_unknown_dirs(unknown_dirs)
 
     print("")
     mytimer2.eltime_pr("Total Elapsed time: ", file=sys.stderr )
