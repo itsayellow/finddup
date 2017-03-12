@@ -83,7 +83,7 @@ output-format=colorized
 files-output=no
 
 # Tells whether to display a full report or only the messages
-reports=no
+reports=yes
 
 # Python expression which should return a note less than 10 (10 is the highest
 # note). You have access to the variables errors warning, statement which
@@ -123,8 +123,8 @@ module-rgx=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
 module-name-hint=(([a-z_][a-z0-9_]*)|([A-Z][a-zA-Z0-9]+))$
 
 # Regular expression matching correct constant names
-#const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
-const-rgx='[a-z\_][a-z0-9\_]{2,30}$
+const-rgx=(([A-Z_][A-Z0-9_]*)|(__.*__))$
+#const-rgx='[a-z\_][a-z0-9\_]{2,30}$
 
 # Naming hint for constant names
 const-name-hint=(([A-Z_][A-Z0-9_]*)|(__.*__))$

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-#
-# finddup - find duplicate files, dirs even if they have different names
-#               searching throughout all paths
+
+"""Find duplicate files, dirs based on their data, not names.
+    Finds identical files, dirs even if they have different names.
+    Searches hierarchically through all paths.
+"""
 
 # TODO: We need to have two classes of problem files: 1.) ignored, don't
 #   matter for dir compare and 2.) read error, cause dir compare to be
@@ -42,7 +44,7 @@ MEM_TO_USE = 2*1024*1024*1024 # 2GB
 MEM_TO_USE = 1024*1024*1024   # 1GB
 
 
-# HACK! TODO
+# TODO more generalized way of specifying this
 IGNORE_FILES = {
         ".picasa.ini":True,
         ".DS_Store":True,
@@ -52,6 +54,13 @@ IGNORE_FILES = {
 
 
 class StderrPrinter(object):
+    r"""Prints to stderr especially for use with \r and same-line updates
+        Keeps track of whether an extra \n is needed before printing string,
+            especially in cases where the previous print string didn't have
+            one and this print string doesn't start with \r
+        Allows for easily printing error messages (regular print) amongst
+            same-line updates (starting with \r and with no finishing \n).
+    """
     def __init__(self):
         self.need_cr = False
 
@@ -74,9 +83,13 @@ myerr = StderrPrinter()
 
 
 def process_command_line(argv):
-    """
-    Return a 2-tuple: (settings object, args list).
-    `argv` is a list of arguments, or `None` for ``sys.argv[1:]``.
+    """Process command line invocation arguments and switches.
+
+    Args:
+        argv: list of arguments, or `None` from ``sys.argv[1:]``.
+
+    Returns:
+        args: Namespace with named attributes of arguments and switches
     """
     argv = argv[1:]
 
@@ -103,31 +116,53 @@ def process_command_line(argv):
     return args
 
 
-# copied from durank
-# convert to string with units
-#   use k=1024 for binary (e.g. kB)
-#   use k=1000 for non-binary kW
-def size2eng(size, k=1024):
-    if   size > k**5:
-        sizestr = "%.1fP" % (float(size)/k**5)
-    elif size > k**4:
-        sizestr = "%.1fT" % (float(size)/k**4)
-    elif size > k**3:
-        sizestr = "%.1fG" % (float(size)/k**3)
-    elif size > k**2:
-        sizestr = "%.1fM" % (float(size)/k**2)
-    elif size > k:
-        sizestr = "%.1fk" % (float(size)/k)
+def num2eng(num, k=1024):
+    """Convert input num to string with unit prefix
+
+    Copied from durank.
+    Use k=1024 for binary (e.g. kB).
+    Use k=1000 for non-binary kW.
+
+    Args:
+        num: integer amount
+        k: the amount that is 1k, usually 1000 or 1024.  Default is 1024
+
+    Returns:
+        numstr: string of formatted decimal number with unit prefix at end
+    """
+    if   num > k**5:
+        numstr = "%.1fP" % (float(num)/k**5)
+    elif num > k**4:
+        numstr = "%.1fT" % (float(num)/k**4)
+    elif num > k**3:
+        numstr = "%.1fG" % (float(num)/k**3)
+    elif num > k**2:
+        numstr = "%.1fM" % (float(num)/k**2)
+    elif num > k:
+        numstr = "%.1fk" % (float(num)/k)
     else:
-        sizestr = "%.1g" % (float(size))
-    return sizestr
+        numstr = "%.1g" % (float(num))
+    return numstr
 
 
-# get filestat on file if possible (i.e. readable), discard if symlink, pipe,
-#   fifo
-# from filestat return filesize, file mod_time, file blocks
-# return (-1,-1,-1) if discarded file
 def check_stat_file(filepath):
+    """Get file's stat from os, and handle files we ignore.
+
+    Get filestat on file if possible (i.e. readable), discard if symlink,
+    pipe, fifo, or one of set of ignored files.  Return tuple has -1 as
+    first member if discarded file.  All files possible to stat return
+    valid blocks (to allow for parent dir sizing later).
+
+    Args:
+        filepath: path to file to check
+
+    Returns:
+        this_size: integer size of file in bytes from file stat.  -1 if skipped
+        this_mod: modification time of file from file stat
+        this_blocks: integer size of file in blocks from file stat
+        extra_info: list, usually information explaining a skipped or errored
+            un-stat'ed file
+    """
     extra_info = []
 
     try:
@@ -152,7 +187,6 @@ def check_stat_file(filepath):
     this_blocks = this_filestat.st_blocks
 
     if IGNORE_FILES.get(os.path.basename(filepath), False):
-        # TODO: experimental
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
@@ -181,15 +215,26 @@ def check_stat_file(filepath):
     return (this_size, this_mod, this_blocks, extra_info)
 
 
-# filetree is dict of dicts and items
-#   each subdir is a nested dict subtree containing dicts and items
-#   base of filetree corresponds to master_root
-#   file item is [file_id, size]
-# return valid pointer to subtree of tree corresponding to root dir
-# base of dict tree is relative to string master_root
-# root is string of dir to get dict of (also containing master_root string)
-# create tree dict hierarchical structure if needed to get to root
 def subtree_dict(filetree, root, master_root):
+    """Return a subtree dict part of filetree master hierarchical dict
+
+    filetree is dict of dicts and items.  Each subdir is a nested dict subtree
+    containing dicts and items.  The base of filetree corresponds to path
+    master_root.  Keys are file/dir names.  Each file item is size in blocks.
+    Items with -1 signify unknown block-size.
+
+    The base of filetree corresponds to path master_root.  This creates tree
+    dict hierarchical structure if needed to get to root.
+
+    Args:
+        filetree: dict of dicts and items, representing full file tree of
+            all searched paths
+        root: filepath of desired dict subtree (absolute path preferred).
+        master_root:
+
+    Returns:
+        subtree: dict of filetree for root dir
+    """
     # root includes master_root
     root_relative = os.path.relpath(root, start=master_root)
     #print( "  root_relative to master_root: " + root_relative)
@@ -201,10 +246,34 @@ def subtree_dict(filetree, root, master_root):
     return subtree
 
 
-# go through every file hierarchically inside argument paths
-# make hash with keys being filesize in bytes and value being list of files
-#   that match
 def hash_files_by_size(paths, master_root):
+    """Hierarchically search through paths and has by file size in bytes
+
+    Hierarchically traverse argument paths, and for every file make dict
+    with keys being filesize in bytes and item being list of files
+    that match
+
+    Record heirarchical filetree containing dict of dicts structure
+    mirroring dir/file hierarchy.
+
+    Record the size in blocks into a dict for every file (keys are filepaths,
+    items are size in blocks.)
+
+    Record the modification time for every file (allowing us to check later
+    if they changed during processing of this program.)
+
+    Args:
+        paths: search paths (each can be dir or file)
+        master_root: path above or same as every path in paths
+
+    Returns:
+        file_size_hash:
+        filetree:
+        filemodtimes:
+        fileblocks:
+        unproc_files:
+    """
+
     unproc_files = []
     file_size_hash = {}
     filetree = {}
@@ -561,15 +630,13 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
     #   the file ids in each subdir's hierarchy of files
     recurse_subtree(master_root, filetree, dir_dict, fileblocks)
 
-    # unknown dirs show up with key of "-1"
+    # unknown dirs show up with key of "-1", don't consider them for matching
     unknown_dirs = dir_dict.get("-1", [])
     if unknown_dirs:
         del dir_dict["-1"]
 
     dup_dirs = [dir_dict[x] for x in dir_dict.keys() if len(dir_dict[x]) > 1]
-    # TODO: use regular for instead of i?
     for i in range(len(dup_dirs)):
-        # convert blocks to bytes to compare with dup_files
         dup_dirs[i] = [fileblocks[dup_dirs[i][0]], [x+os.path.sep for x in dup_dirs[i]]]
 
     unique_dirs = [dir_dict[x][0]+os.path.sep for x in dir_dict.keys() if len(dir_dict[x]) == 1]
@@ -582,7 +649,7 @@ def print_sorted_dups(dup_groups, master_root):
     print("")
     print("Duplicate Files/Directories:")
     for dup_group in sorted(dup_groups, reverse=True, key=lambda x: x[0]):
-        print("Duplicate set (%sB each)"%(size2eng(512*dup_group[0])))
+        print("Duplicate set (%sB each)"%(num2eng(512*dup_group[0])))
         for filedir in sorted(dup_group[1]):
             if master_root == "/":
                 # all paths are abspaths
