@@ -149,19 +149,20 @@ def check_stat_file(filepath):
     """Get file's stat from os, and handle files we ignore.
 
     Get filestat on file if possible (i.e. readable), discard if symlink,
-    pipe, fifo, or one of set of ignored files.  Return tuple has -1 as
-    first member if discarded file.  All files possible to stat return
-    valid blocks (to allow for parent dir sizing later).
+    pipe, fifo, or one of set of ignored files.  Return this_size is -1
+    if discarded file.  All files possible to stat return valid blocks
+    (to allow for parent dir sizing later).
 
     Args:
         filepath: path to file to check
 
     Returns:
-        this_size: integer size of file in bytes from file stat.  -1 if skipped
+        this_size: integer size of file in bytes from file stat.  -1 if
+            skipped
         this_mod: modification time of file from file stat
         this_blocks: integer size of file in blocks from file stat
-        extra_info: list, usually information explaining a skipped or errored
-            un-stat'ed file
+        extra_info: list, usually information explaining a skipped or
+            errored un-stat'ed file
     """
     extra_info = []
 
@@ -218,10 +219,10 @@ def check_stat_file(filepath):
 def subtree_dict(filetree, root, master_root):
     """Return a subtree dict part of filetree master hierarchical dict
 
-    filetree is dict of dicts and items.  Each subdir is a nested dict subtree
-    containing dicts and items.  The base of filetree corresponds to path
-    master_root.  Keys are file/dir names.  Each file item is size in blocks.
-    Items with -1 signify unknown block-size.
+    filetree is dict of dicts and items.  Each subdir is a nested dict
+    subtree containing dicts and items.  The base of filetree corresponds
+    to path master_root.  Keys are file/dir names.  Each file item is size
+    in blocks.  Items with -1 signify unknown block-size.
 
     The base of filetree corresponds to path master_root.  This creates tree
     dict hierarchical structure if needed to get to root.
@@ -230,7 +231,8 @@ def subtree_dict(filetree, root, master_root):
         filetree: dict of dicts and items, representing full file tree of
             all searched paths
         root: filepath of desired dict subtree (absolute path preferred).
-        master_root:
+        master_root: highest path possible of all paths.  Corresponds
+            to root dict of filetree
 
     Returns:
         subtree: dict of filetree for root dir
@@ -256,8 +258,8 @@ def hash_files_by_size(paths, master_root):
     Record heirarchical filetree containing dict of dicts structure
     mirroring dir/file hierarchy.
 
-    Record the size in blocks into a dict for every file (keys are filepaths,
-    items are size in blocks.)
+    Record the size in blocks into a dict for every file (keys are
+    filepaths, items are size in blocks.)
 
     Record the modification time for every file (allowing us to check later
     if they changed during processing of this program.)
@@ -378,10 +380,10 @@ def matching_array_groups(datachunks_list):
     return match_groups
 
 
-# all files in filelist are of size file_size (in blocks)
+# all files in filelist are of size fileblocks (in blocks)
 # dup_groups = [
-#       [file_size1, [identical_file1a, identical_file1b, identical_file1c]],
-#       [file_size2, [identical_file2a, identical_file2b]]
+#       [fileblocks1, [identical_file1a, identical_file1b, identical_file1c]],
+#       [fileblocks2, [identical_file2a, identical_file2b]]
 #               ]
 def compare_file_group(filelist, fileblocks):
     #print('------ compare_file_group -----------')
@@ -555,8 +557,6 @@ def create_file_ids(dup_groups, unique_files, filetree, master_root):
             (dup_dir, dup_file) = os.path.split(dup_file)
             subtree_dict(filetree, dup_dir, master_root)[dup_file] = idnum
         idnum += 1
-
-    return file_id
 
 
 # remove redundant searchpaths
@@ -762,9 +762,8 @@ def main(argv=None):
     #   they contain identical files and subdirs
 
     # for each unique file, make a unique id, identical-data files share id
-    #   save unique id to file_id dict (key=filepath, item=id)
     #   save unique id to items of files in filetree hierarchical dict
-    file_id = create_file_ids(dup_groups, unique_files, filetree, master_root)
+    create_file_ids(dup_groups, unique_files, filetree, master_root)
 
     # inventory directories based on identical/non-identical contents
     #   (ignoring names)
