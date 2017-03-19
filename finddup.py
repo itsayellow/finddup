@@ -582,15 +582,23 @@ def compare_file_group(filelist, fileblocks):
 
 
 def compare_files(file_size_hash, fileblocks, unproc_files):
-    """
+    """Determine duplicate, unique files from file data
+
+    Each group of file_size_hash is a set of possible duplicate files (each
+    group has files of all the same size in bytes.)  Read file data for
+    each file in a group to determine which are ACTUALLY duplicate or
+    unique files from the file data.
+
     Args:
         file_size_hash: key: size in bytes, item: list of files that size
         fileblocks: dict with key: filepath, item: file size in blocks
-        unproc_files: READ/WRITE
+        unproc_files: READ/WRITE list of files that cannot be read, this
+            list is added to by this function
 
     Returns:
-        dup_groups:
-        unique_files:
+        dup_groups: list of lists.  Each list contains:
+            [size in blocks of duplicate files, list of duplicate files]
+        unique_files: list of filepaths that are unique
     """
     unique_files = []
     dup_groups = []
@@ -622,9 +630,15 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
     """
     Args:
-        dup_groups:
-        unique_files:
-        filetree: READ/WRITE
+        dup_groups: list of lists of filepaths that have duplicate data.
+            Each list contains:
+            [size in blocks of duplicate files, list of duplicate files]
+        unique_files: list of paths of files that have unique data
+        filetree: READ/WRITE dict of dicts and items representing
+            hierarchy of all files searched starting at master_root,
+            keys are file or dir name at that level, items are dict
+            (if dir) or integer file id (if file)
+            This function updates all the 
         master_root: string that is lowest common root dir for all
             searched files, dirs
     """
