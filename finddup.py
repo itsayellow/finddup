@@ -637,7 +637,9 @@ def create_file_ids(dup_groups, unique_files, filetree, master_root):
         filetree: READ/WRITE dict of dicts and items representing
             hierarchy of all files searched starting at master_root,
             keys are file or dir name at that level, items are dict
-            (if dir) or integer file id (if file)
+            (if dir) or integer file id (if file).  file id is unique
+            if file is unique (based on data)  files with identical
+            data inside have same file id
             This function updates all the 
         master_root: string that is lowest common root dir for all
             searched files, dirs
