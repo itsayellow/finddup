@@ -52,7 +52,8 @@ IGNORE_FILES = {
         ".picasa.ini":True,
         ".DS_Store":True,
         "Thumbs.db":True,
-        " Icon\r":True
+        " Icon\r":True,
+        "Icon\r":True
         }
 
 
