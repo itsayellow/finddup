@@ -266,8 +266,8 @@ def hash_files_by_size(paths, master_root):
     Record the size in blocks into a dict for every file (keys are
     filepaths, items are size in blocks.)
 
-    Record the modification time for every file (allowing us to check later
-    if they changed during processing of this program.)
+    Record the modification time for every file (allowing us to check
+    later if they changed during processing of this program.)
 
     Args:
         paths: search paths (each can be dir or file)
@@ -275,7 +275,8 @@ def hash_files_by_size(paths, master_root):
             searched files, dirs
 
     Returns:
-        file_size_hash: key-size in bytes, item-list of files with that size
+        file_size_hash: key-size in bytes, item-list of files with that
+            size
         filetree: dict of items and dicts corresponding to directory
             hierarchy of paths searched.  root of tree is master_root path
         filemodtimes: key-filepath, item-file modif. datetime
@@ -395,7 +396,7 @@ def matching_array_groups(datachunks_list):
                 x for x in ungrp_chunk_indicies if x not in matching_indicies]
 
     single_idx_groups = [x[0] for x in match_idx_groups if len(x) == 1]
-    match_idx_groups = [x for x in match_idx_groups if x not in single_idx_groups]
+    match_idx_groups = [x for x in match_idx_groups if x[0] not in single_idx_groups]
 
     return (match_idx_groups, single_idx_groups)
 
@@ -468,8 +469,8 @@ def compare_file_group(filelist, fileblocks):
 
     It is assumed that all files in filelist are the same size in bytes.
 
-    Go through data in files in each group, finding files in each group that
-    are identical or unique with respect to their data.
+    Go through data in files in each group, finding files in each group
+    that are identical or unique with respect to their data.
 
     This could have been done using recursion, but for big files might
     have taken so many file chunks that it would've taken too many
@@ -483,8 +484,8 @@ def compare_file_group(filelist, fileblocks):
 
     Returns:
         unique_files: list of files that are verified unique
-        dup_groups: list of lists of files that are verified duplicate data
-            files.  Each sublist:
+        dup_groups: list of lists of files that are verified duplicate
+            data files.  Each sublist:
             [<size in blocks of all files>, [file1, file2, ...]
         unproc_files: list of files that cannot be opened or read
     """
@@ -534,6 +535,10 @@ def compare_file_group(filelist, fileblocks):
             # get groups of indicies with datachunks that match each other
             (match_idx_groups, single_idx_groups) = matching_array_groups(
                     filedata_list)
+            print("single_idx_groups")
+            print(single_idx_groups)
+            print("match_idx_groups")
+            print(match_idx_groups)
             unique_files.extend(
                     [filelist_group[s_i_g] for s_i_g in single_idx_groups])
 
@@ -684,7 +689,7 @@ def process_searchpaths(searchpaths):
 
 
 def recurse_subtree(name, subtree, dir_dict, fileblocks):
-    """
+    """Reucrse subtree of filetree, at each dir saving dir data id, and size.
     Args:
         name: name of filepath of this directory
         subtree: dict in filetree of this directory
