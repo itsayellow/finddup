@@ -464,11 +464,6 @@ def read_filelist(filelist_group, filepos, amt_file_read):
     return (filedata_list, filelist_group_new, unproc_files, file_bytes_read)
 
 
-# all files in filelist are of size fileblocks (in blocks)
-# dup_groups = [
-#       [fileblocks1, [identical_file1a, identical_file1b, identical_file1c]],
-#       [fileblocks2, [identical_file2a, identical_file2b]]
-#               ]
 def compare_file_group(filelist, fileblocks):
     """Compare data in files, find groups of identical and unique files.
 
@@ -624,12 +619,13 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
     return (dup_groups, unique_files)
 
 
-# creates file ids for all files in unique_files and dup_groups, then adds
-#   to filetree structure
-# each file_id is unique for each file with unique data
-# file_ids for two files are the same if the files' data are the same
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
-    """
+    """Create ID numbers for every file based on file data uniqueness
+
+    This function adds file id numbers to each file in the filetree
+    structure.  Files with unique data have unique file IDs.
+    File IDs for two files are the same if the files' data are the same.
+
     Args:
         dup_groups: list of lists of filepaths that have duplicate data.
             Each list contains:
@@ -638,10 +634,9 @@ def create_file_ids(dup_groups, unique_files, filetree, master_root):
         filetree: READ/WRITE dict of dicts and items representing
             hierarchy of all files searched starting at master_root,
             keys are file or dir name at that level, items are dict
-            (if dir) or integer file id (if file).  file id is unique
-            if file is unique (based on data)  files with identical
+            (if dir) or integer file id (if file).  File id is unique
+            if file is unique (based on data).  Files with identical
             data inside have same file id
-            This function updates all the 
         master_root: string that is lowest common root dir for all
             searched files, dirs
     """
@@ -706,7 +701,22 @@ def process_searchpaths(searchpaths):
 
 
 def recurse_subtree(name, subtree, dir_dict, fileblocks):
-    """Reucrse subtree of filetree, at each dir saving dir data id, and size.
+    """Recurse subtree of filetree, at each dir saving dir data id, size.
+
+    Directories are handled after files, because the ID string for a dir
+    is based on the file IDs hierarchically contained in that dir.
+
+    Recursion causes lowest leaf dirs to be ID'ed first
+
+    Every dir ID string is alphabetized to ensure the same order for the
+    same file IDs.
+
+    Example:
+        dir A contains: dir B, file C (ID: 345)
+        dir B contains: file D (ID: 401), file E (ID: 405)
+        ID string for dir B: [401,405]
+        ID string for dir A: [[401,405],345]
+    
     Args:
         name: name of filepath of this directory
         subtree: dict in filetree of this directory
