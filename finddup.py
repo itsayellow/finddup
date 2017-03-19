@@ -458,9 +458,7 @@ def read_filelist(filelist_group, filepos, amt_file_read):
     if filedata_size_list:
         file_bytes_read = filedata_size_list[0]
     else:
-        print("Empty filedata_size_list")
-        print(filelist_group)
-        #print("file_bytes_read = 0")
+        # all are invalid
         file_bytes_read = 0
     return (filedata_list, filelist_group_new, unproc_files, file_bytes_read)
 
