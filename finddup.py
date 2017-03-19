@@ -460,7 +460,7 @@ def read_filelist(filelist_group, filepos, amt_file_read):
     else:
         print("Empty filedata_size_list")
         print(filelist_group)
-        print("file_bytes_read = 0")
+        #print("file_bytes_read = 0")
         file_bytes_read = 0
     return (filedata_list, filelist_group_new, unproc_files, file_bytes_read)
 
@@ -541,10 +541,6 @@ def compare_file_group(filelist, fileblocks):
             # get groups of indicies with datachunks that match each other
             (match_idx_groups, single_idx_groups) = matching_array_groups(
                     filedata_list)
-            print("single_idx_groups")
-            print(single_idx_groups)
-            print("match_idx_groups")
-            print(match_idx_groups)
             unique_files.extend(
                     [filelist_group[s_i_g] for s_i_g in single_idx_groups])
 
