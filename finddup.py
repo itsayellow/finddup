@@ -606,7 +606,7 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
 
     compare_files_timer = tictoc.Timer()
     compare_files_timer.start()
-    myerr.print("Starting comparing file data")
+    myerr.print("Comparing file data...")
 
     old_time = 0
     for key in file_size_hash.keys():
