@@ -759,9 +759,17 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
 
 
 def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
-    """
-    inventory directories based on identical/non-identical contents (ignoring
-    file/dir names)
+    """Create dir ids for each dir represented in filetree and find dups, etc.
+
+    Inventory directories based on identical/non-identical data in files
+    in the hierarchy of each directory (ignoring file/dir names)
+
+    Create unique ID string for each directory that has unique hierarchical
+    contents (based on file data).  For directories that have identical
+    hierarchical files/data, give the same ID string.
+
+    Find duplicate directories, and save their total size in blocks.  Also
+    find unique directories.
 
     dir_dict: key: hash based on dir hierarchical contents, item: dir path
 
@@ -769,12 +777,18 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
         filetree: READ/WRITE
         master_root: string that is lowest common parent dir path of all
             searched files
-        fileblocks: READ/WRITE
-        dup_groups: READ/WRITE
+        fileblocks: READ/WRITE dict where key is path to file/dir, item
+            is size of file/dir in blocks
+        dup_groups: READ/WRITE list of duplicate file/dir groups.  Duplicate
+            directory groups are added to this.  Format for each sublist
+            of this list:
+            [size in blocks of duplicate dirs, list of duplicate dirs]
 
     Returns:
-        unique_dirs:
-        unknown_dirs:
+        unique_dirs: list of directories that are not a duplicate of
+            any other known directory
+        unknown_dirs: list of directories with an unknown file in the
+            hierarchy, making these directories also "unknown"
     """
     dup_dirs = []
     unique_dirs = []
@@ -811,9 +825,14 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
 
 
 def print_sorted_dups(dup_groups, master_root):
-    """
+    """Print report of sorted duplicate files and directories.
+
+    Sort duplicate groups based on total size in blocks, biggest size first.
+
     Args:
-        dup_groups:
+        dup_groups: list of duplicate file/dir groups.  Format for each
+            sublist of this list:
+            [size in blocks of duplicate dirs, list of duplicate dir paths]
         master_root: string that is lowest common parent dir path of all
             searched files
     """
@@ -834,9 +853,12 @@ def print_sorted_dups(dup_groups, master_root):
 
 
 def print_sorted_uniques(unique_files, master_root):
-    """
+    """Print report of sorted list of unique files and directories
+
+    Sort list of unique files and directories alphabetically.
+
     Args:
-        unique_files:
+        unique_files: list of unique file/dir paths
         master_root: string that is lowest common parent dir path of all
             searched files
     """
@@ -855,9 +877,12 @@ def print_sorted_uniques(unique_files, master_root):
 
 
 def print_unproc_files(unproc_files):
-    """
+    """Print report of all files unable to be processed.
+
+    Any files that are unreadable are listed alphabetically.
+
     Args:
-        unproc_files:
+        unproc_files: list of unprocessed file paths
     """
     symlinks = [x[0] for x in unproc_files if x[1] == "symlink"]
     ignored = [x[0] for x in unproc_files if x[1] == "ignore_files"]
@@ -897,24 +922,30 @@ def print_unproc_files(unproc_files):
             print("  "+ignore_file)
 
 
-def print_header(master_root):
+def print_unknown_dirs(unknown_dirs):
+    """Print report of all files unable to be processed.
+
+    Any directories that contain unreadable files listed alphabetically.
+
+    Args:
+        unknown_dirs: list of directory paths for dirs that have
+            unreadable files
     """
+    if unknown_dirs:
+        print("\nUnknown Dirs")
+        for unk_dir in sorted(unknown_dirs):
+            print(unk_dir)
+
+
+def print_header(master_root):
+    """Print header information to start report on files and directories.
+
     Args:
         master_root: string that is lowest common parent dir path of all
             searched files
     """
     if master_root != "/":
         print("All file paths referenced from:\n"+master_root)
-
-
-def print_unknown_dirs(unknown_dirs):
-    """
-    Args:
-    """
-    if unknown_dirs:
-        print("\nUnknown Dirs")
-        for unk_dir in sorted(unknown_dirs):
-            print(unk_dir)
 
 
 #   1. For every file, get: size, mod_time
