@@ -25,8 +25,10 @@ class Timer:
         togo_str = str(datetime.timedelta(seconds=int(togo_time)))
         perc_str = "%2.f"%(frac_done*100)
 
+        elapsed_str = "Elapsed: " + elapsed_str
+        togo_str = "Est. Remaining: " + togo_str
+        perc_str = perc_str + "% Complete"
+
         # make sure to erase end of string at least
-        print("\b"*20 + " "*20 + "\r" + \
-                perc_str + "% Complete." + \
-                "   Est. Remaining: " + togo_str + \
-                "   Elapsed: " + elapsed_str, end="", **print_args)
+        print("\r%s%32s%32s"%(perc_str,togo_str,elapsed_str),
+                end="", **print_args)
