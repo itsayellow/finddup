@@ -711,6 +711,7 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     Every dir ID string is alphabetized to ensure the same order for the
     same file IDs.
 
+    Saves dir IDs into dir_dict.  Saves dir size in blocks into fileblocks.
     Example:
         dir A contains: dir B, file C (ID: 345)
         dir B contains: file D (ID: 401), file E (ID: 405)
@@ -720,10 +721,9 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     Args:
         name: name of filepath of this directory
         subtree: dict in filetree of this directory
-        dir_dict: READ/WRITE key: dirpath, item: hier_id_str for this
-            dir, specifying all fileids of files/dirs inside this dir
-            hierarchically down to lowest levels
-        fileblocks: dict with key: filepath, item: size in blocks
+        dir_dict: READ/WRITE key: hier_id_str, item: list of dir paths
+            with this ID string
+        fileblocks: READ/WRITE dict with key: filepath, item: size in blocks
 
     Returns:
         hier_id_str: string based only on fileids of files/dirs inside
@@ -758,17 +758,19 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     return hier_id_str
 
 
-# inventory directories based on identical/non-identical contents (ignoring
-#   file/dir names)
-# dir_dict: key: hash based on dir hierarchical contents, item: dir path
 def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
     """
+    inventory directories based on identical/non-identical contents (ignoring
+    file/dir names)
+
+    dir_dict: key: hash based on dir hierarchical contents, item: dir path
+
     Args:
-        filetree:
+        filetree: READ/WRITE
         master_root: string that is lowest common parent dir path of all
             searched files
-        fileblocks
-        dup_groups:
+        fileblocks: READ/WRITE
+        dup_groups: READ/WRITE
 
     Returns:
         unique_dirs:
