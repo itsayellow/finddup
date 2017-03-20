@@ -604,7 +604,7 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
     myerr.print("Comparing file data...")
 
     old_time = 0
-    for key in file_size_hash.keys():
+    for (i, key) in enumerate(file_size_hash.keys()):
         (this_unique_files, this_dup_groups, this_unproc_files
                 ) = compare_file_group(file_size_hash[key], fileblocks)
         unique_files.extend(this_unique_files)
@@ -612,7 +612,11 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
         unproc_files.extend(this_unproc_files)
         if compare_files_timer.eltime() > old_time+0.4:
             old_time = compare_files_timer.eltime()
-            compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
+            #compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
+            compare_files_timer.progress_pr(
+                    frac_done=(i+1)/len(file_size_hash),
+                    file=sys.stderr
+                    )
 
     myerr.print("\nFinished comparing file data")
 

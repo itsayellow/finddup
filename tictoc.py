@@ -16,3 +16,17 @@ class Timer:
         eltime = time.time() - self.start_time
         elapsed = str(datetime.timedelta(seconds=int(eltime )))
         print( outstring + elapsed, **print_args)
+
+    def progress_pr(self, frac_done=0.0, **print_args):
+        el_time = time.time() - self.start_time
+        togo_time = el_time * (1/frac_done - 1)
+
+        elapsed_str = str(datetime.timedelta(seconds=int(el_time)))
+        togo_str = str(datetime.timedelta(seconds=int(togo_time)))
+        perc_str = "%2.f"%(frac_done*100)
+
+        # make sure to erase end of string at least
+        print("\b"*20 + " "*20 + "\r" + \
+                perc_str + "% Complete." + \
+                "   Est. Remaining: " + togo_str + \
+                "   Elapsed: " + elapsed_str, end="", **print_args)
