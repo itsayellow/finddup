@@ -1,4 +1,3 @@
-import sys
 import time
 import datetime
 
@@ -30,5 +29,5 @@ class Timer:
         perc_str = perc_str + "% Complete"
 
         # make sure to erase end of string at least
-        print("\r%s%32s%32s"%(perc_str,togo_str,elapsed_str),
+        print("\r%s%36s%29s"%(perc_str,togo_str,elapsed_str),
                 end="", **print_args)
