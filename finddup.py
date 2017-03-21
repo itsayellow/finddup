@@ -181,6 +181,9 @@ def check_stat_file(filepath):
         #myerr.print("  Error: "+str(type(e)))
         #myerr.print("  Error: "+str(e))
         return (-1, -1, -1, [type(e), str(e)])
+    except KeyboardInterrupt:
+        # get out if we got a keyboard interrupt
+        raise
     except:
         e = sys.exc_info()
         myerr.print("UNHANDLED File Stat on: "+filepath)
@@ -333,7 +336,7 @@ def hash_files_by_size(paths, master_root):
 
     # Actual hierarchical file stat processing
     for treeroot in paths:
-        myerr.print("Starting sizing of: "+treeroot)
+        myerr.print("Sizing: " + treeroot)
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
         if os.path.isdir(treeroot):
@@ -441,6 +444,9 @@ def read_filelist(filelist_group, filepos, amt_file_read):
             # append -1 to signify invalid
             filedata_list.append(-1)
             filedata_size_list.append(-1)
+        except KeyboardInterrupt:
+            # get out if we got a keyboard interrupt
+            raise
         except:
             e = sys.exc_info()
             myerr.print("UNHANDLED Error opening:\n"+thisfile)
@@ -617,9 +623,8 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
                     frac_done=(i+1)/len(file_size_hash),
                     file=sys.stderr
                     )
-
+    
     myerr.print("\nFinished comparing file data")
-
     return (dup_groups, unique_files)
 
 
@@ -952,6 +957,32 @@ def print_header(master_root):
         print("All file paths referenced from:\n"+master_root)
 
 
+def get_frequencies(file_size_hash):
+    """Collect data on equi-size file groups.
+
+    Results:
+    For each group of files that are of the same size in bytes:
+        Groups of less than 46 files each account for 99% of groups
+        Groups of less than 165 files each account for 99.9% of groups
+        Groups of less than 250 files each account for 99.93% of groups
+
+    Key takeaway: for the vast majority of groups, we should be able to
+    keep all files in a group open at the same time and not exceed OS
+    limits on open filehandles.
+
+    Poisson(gamma=0.5) Distribution?
+    """
+    freq_dict = {}
+    for key in file_size_hash:
+        numfiles = len(file_size_hash[key])
+        freq_dict[numfiles] = freq_dict.get(numfiles, 0) + 1
+
+    for key in sorted(freq_dict):
+        print("%d: %d hits"%(key, freq_dict[key]))
+    
+    return freq_dict
+
+
 #   1. For every file, get: size, mod_time
 #   2. hash by sizes, each hash size in dict fill with list of all files
 #       that size
@@ -977,6 +1008,9 @@ def main(argv=None):
     #   was stat'ed
     (file_size_hash, filetree, filemodtimes, fileblocks, unproc_files
             ) = hash_files_by_size(searchpaths, master_root)
+
+    # DEBUG find frequencies of group sizes (collect statistics)
+    #freq_dict = get_frequencies(file_size_hash)
 
     # compare all filegroups by using byte-by-byte comparison to find actually
     #   unique, duplicate
@@ -1028,5 +1062,10 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    status = main(sys.argv)
+    try:
+        status = main(sys.argv)
+    except KeyboardInterrupt:
+        print("\nStopped by user.", file=sys.stderr)
+        # "Terminated by Ctrl-C"
+        status = 130
     sys.exit(status)
