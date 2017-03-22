@@ -623,9 +623,47 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
                     frac_done=(i+1)/len(file_size_hash),
                     file=sys.stderr
                     )
+    # print one last time to get the 100% done tally
+    compare_files_timer.progress_pr(
+            frac_done=(i+1)/len(file_size_hash),
+            file=sys.stderr
+            )
     
     myerr.print("\nFinished comparing file data")
     return (dup_groups, unique_files)
+
+def check_files_for_chages(filemodtimes, unproc_files, dup_groups, unique_files, filetree, master_root):
+    """Look for files that have been modified during execution of this prog.
+
+    Any change in a file since the beginning of this program's execution
+    invalidates the uniqueness/duplicateness analysis of that file.
+    It is removed from dup_groups or unique_files and placed in
+    unproc_files with the tag "changed".
+
+    Args:
+        filemodtimes:
+        unproc_files: READ/WRITE
+        dup_groups: READ/WRITE
+        unique_files: READ/WRITE
+        filetree: READ/WRITE
+        master_root:
+    """
+    for filepath in filemodtimes:
+        (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
+                filepath)
+        if this_mod != filemodtimes[filepath]:
+            # file has changed since start of this program
+            (this_dir, this_file) = os.path.split(filepath)
+            subtree_dict(filetree, this_dir, master_root)[this_file]=-1
+            unproc_files.append([filepath,"changed"])
+
+            # remove filepath from dups and unique if found
+            if filepath in unique_files:
+                unique_files.remove(filepath)
+            for dup_group in dup_groups:
+                if filepath in dup_group[1]:
+                    dup_group[1].remove(filepath)
+
 
 
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
@@ -810,6 +848,8 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
 
     # unknown dirs show up with key of "-1", don't consider them for matching
     unknown_dirs = dir_dict.get("-1", [])
+    # add trailing slash to all dir names
+    unknown_dirs = [x + os.path.sep for x in unknown_dirs]
     if unknown_dirs:
         del dir_dict["-1"]
 
@@ -833,6 +873,18 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
     return (unique_dirs, unknown_dirs)
 
 
+def filedir_rel_master_root(filedir, master_root):
+    if master_root == "/":
+        # all paths are abspaths
+        filedir_str = filedir
+    else:
+        # relpath from master_root
+        filedir_str = os.path.relpath(filedir, start=master_root)
+        if filedir.endswith(os.path.sep):
+            filedir_str += os.path.sep
+    return filedir_str
+
+
 def print_sorted_dups(dup_groups, master_root):
     """Print report of sorted duplicate files and directories.
 
@@ -847,17 +899,11 @@ def print_sorted_dups(dup_groups, master_root):
     """
     print("")
     print("Duplicate Files/Directories:")
+    print("----------------")
     for dup_group in sorted(dup_groups, reverse=True, key=lambda x: x[0]):
         print("Duplicate set (%sB each)"%(num2eng(512*dup_group[0])))
         for filedir in sorted(dup_group[1]):
-            if master_root == "/":
-                # all paths are abspaths
-                filedir_str = filedir
-            else:
-                # relpath from master_root
-                filedir_str = os.path.relpath(filedir, start=master_root)
-                if filedir.endswith(os.path.sep):
-                    filedir_str += os.path.sep
+            filedir_str = filedir_rel_master_root(filedir, master_root)
             print("  %s"%filedir_str)
 
 
@@ -871,21 +917,14 @@ def print_sorted_uniques(unique_files, master_root):
         master_root: string that is lowest common parent dir path of all
             searched files
     """
-    print("\n")
-    print("Unique Files/Directories:")
+    print("\n\nUnique Files/Directories:")
+    print("----------------")
     for filedir in sorted(unique_files):
-        if master_root == "/":
-            # all paths are abspaths
-            filedir_str = filedir
-        else:
-            # relpath from master_root
-            filedir_str = os.path.relpath(filedir, start=master_root)
-            if filedir.endswith(os.path.sep):
-                filedir_str += os.path.sep
+        filedir_str = filedir_rel_master_root(filedir, master_root)
         print(filedir_str)
 
 
-def print_unproc_files(unproc_files):
+def print_unproc_files(unproc_files, master_root):
     """Print report of all files unable to be processed.
 
     Any files that are unreadable are listed alphabetically.
@@ -897,41 +936,59 @@ def print_unproc_files(unproc_files):
     ignored = [x[0] for x in unproc_files if x[1] == "ignore_files"]
     sockets = [x[0] for x in unproc_files if x[1] == "socket"]
     fifos = [x[0] for x in unproc_files if x[1] == "fifo"]
+    changes = [x[0] for x in unproc_files if x[1] == "changed"]
 
+    # other is anything not in one of the above lists
     other = [x for x in unproc_files if x[0] not in symlinks]
     other = [x for x in other if x[0] not in ignored]
     other = [x for x in other if x[0] not in sockets]
     other = [x for x in other if x[0] not in fifos]
+    other = [x for x in other if x[0] not in changes]
 
-    print("\n")
-    print("Unprocessed Files")
+    print("\n\nUnprocessed Files")
     if other:
-        print("\nUnreadable Files (ignored)")
+        print("\n\nUnreadable Files (ignored)")
+        print("----------------")
         for err_file in sorted(other):
-            print("  "+err_file[0])
+            filedir_str = filedir_rel_master_root(err_file[0], master_root)
+            print("  "+filedir_str)
             for msg in err_file[1:]:
                 err_str = textwrap.fill(
                         msg, initial_indent=' '*2, subsequent_indent=' '*6)
                 print(err_str)
     if sockets:
-        print("\nSockets (ignored)")
-        for sock_file in sorted(sockets):
-            print("  "+sock_file)
+        print("\n\nSockets (ignored)")
+        print("----------------")
+        for filedir in sorted(sockets):
+            filedir_str = filedir_rel_master_root(filedir, master_root)
+            print("  "+filedir_str)
     if fifos:
-        print("\nFIFOs (ignored)")
-        for fifo_file in sorted(fifos):
-            print("  "+fifo_file)
+        print("\n\nFIFOs (ignored)")
+        print("----------------")
+        for filedir in sorted(fifos):
+            filedir_str = filedir_rel_master_root(filedir, master_root)
+            print("  "+filedir_str)
     if symlinks:
-        print("\nSymbolic Links (ignored)")
-        for symlink in sorted(symlinks):
-            print("  "+symlink)
+        print("\n\nSymbolic Links (ignored)")
+        print("----------------")
+        for filedir in sorted(symlinks):
+            filedir_str = filedir_rel_master_root(filedir, master_root)
+            print("  "+filedir_str)
+    if changes:
+        print("\n\nChanged Files (since start of this program's execution)")
+        print("----------------")
+        for filedir in changes:
+            filedir_str = filedir_rel_master_root(filedir, master_root)
+            print("  "+filedir_str)
     if ignored:
-        print("\nIgnored Files")
-        for ignore_file in sorted(ignored):
-            print("  "+ignore_file)
+        print("\n\nIgnored Files")
+        print("----------------")
+        for filedir in sorted(ignored):
+            filedir_str = filedir_rel_master_root(filedir, master_root)
+            print("  "+filedir_str)
 
 
-def print_unknown_dirs(unknown_dirs):
+def print_unknown_dirs(unknown_dirs, master_root):
     """Print report of all files unable to be processed.
 
     Any directories that contain unreadable files listed alphabetically.
@@ -941,9 +998,11 @@ def print_unknown_dirs(unknown_dirs):
             unreadable files
     """
     if unknown_dirs:
-        print("\nUnknown Dirs")
-        for unk_dir in sorted(unknown_dirs):
-            print(unk_dir)
+        print("\n\nUnknown Dirs")
+        print("----------------")
+        for filedir in sorted(unknown_dirs):
+            filedir_str = filedir_rel_master_root(filedir, master_root)
+            print("  "+filedir_str)
 
 
 def print_header(master_root):
@@ -990,10 +1049,19 @@ def get_frequencies(file_size_hash):
 #       by comparing matching-size files chunk by chunk, splitting into
 #       subgroups as differences found
 def main(argv=None):
-    """
-    Args:
+    """Search one or more searchpaths, report unique or duplicate files.
 
-    Returns:
+    Files are searched by data only, file names and attributes are
+    irrelevant to determining uniqueness.
+
+    In all internal data structures, paths are represented as absolute.
+
+    In the report, paths are relative to the lowest common path of all
+    searchpaths.
+
+    Args:
+        switches
+        searchpaths
     """
     mytimer = tictoc.Timer()
     mytimer.start()
@@ -1001,6 +1069,8 @@ def main(argv=None):
 
     # eliminate duplicates, and paths that are sub-paths of other searchpaths
     (master_root, searchpaths) = process_searchpaths(args.searchpaths)
+
+    # ANALYZE FILES, DIRECTORIES
 
     # file_size_hash is dict: keys are file sizes in bytes, items are lists of
     #   filepaths that are all that size (lists are all len > 1)
@@ -1019,6 +1089,18 @@ def main(argv=None):
     # unproc_files: list problematic (mostly unreadable) files
     (dup_groups, unique_files) = compare_files(
             file_size_hash, fileblocks, unproc_files)
+
+    # compare_files takes the longest time, so now check and see which files
+    #   have changed in the meantime and mark them as changed
+    # also mark in filetree as unprocessed, getting a -1 for their item in
+    #   filetree hierarchical dict
+    check_files_for_chages(
+            filemodtimes,
+            unproc_files,
+            dup_groups,
+            unique_files,
+            filetree,
+            master_root)
 
     # now we know all of the files that are duplicates and unique
     # we will also determine below which directories are identical in that
@@ -1050,10 +1132,10 @@ def main(argv=None):
     print_sorted_uniques(unique_files, master_root)
 
     # print lists of unprocessed files
-    print_unproc_files(unproc_files)
+    print_unproc_files(unproc_files, master_root)
 
     # print unknown status directories
-    print_unknown_dirs(unknown_dirs)
+    print_unknown_dirs(unknown_dirs, master_root)
 
     print("")
     mytimer.eltime_pr("Total Elapsed time: ", file=sys.stderr)
