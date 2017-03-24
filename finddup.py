@@ -407,6 +407,68 @@ def matching_array_groups(datachunks_list):
     return (match_idx_groups, single_idx_groups)
 
 
+def read_filehandle_list(fhlist_group, amt_file_read):
+    """Read amt_file_read bytes in each of list of open filehandles.
+
+    It is assumed that all files in fhlist_group are the same size in
+    bytes.
+
+    Args:
+        fhlist_group: list of open file handles to read
+        amt_file_read: amount of bytes to read from each file
+
+    Returns:
+        fhlist_group_new: version of fhlist_group with unproc_files
+            removed
+        filedata_list: list of arrays of read file data
+        unproc_files: files that were unreadable due to errors
+        file_bytes_read: actual number of bytes read from every valid file
+    """
+    filedata_list = []
+    filedata_size_list = []
+    unproc_files = []
+    # open files one at a time and close after getting each file's
+    #   data into filedata_list
+    for thisfh in fhlist_group:
+        try:
+            this_filedata = thisfh.read(amt_file_read)
+            filedata_list.append(this_filedata)
+            # filedata_size_list is how many bytes we actually read
+            #   (may be less than max)
+            filedata_size_list.append(len(this_filedata))
+        except OSError as e:
+            # e.g. FileNotFoundError, PermissionError
+            #myerr.print(str(e))
+            unproc_files.append([thisfh.name, str(type(e)), str(e)])
+            # append -1 to signify invalid
+            filedata_list.append(-1)
+            filedata_size_list.append(-1)
+        except KeyboardInterrupt:
+            # get out if we get a keyboard interrupt
+            raise
+        except:
+            e = sys.exc_info()
+            myerr.print("UNHANDLED Error opening:\n"+thisfh.name)
+            myerr.print("  Error: "+str(e[0]))
+            myerr.print("  Error: "+str(e[1]))
+            myerr.print("  Error: "+str(e[2]))
+            raise e[0]
+
+    # remove invalid files from fhlist_group, filedata_list,
+    #   filedata_size_list
+    invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1]
+    fhlist_group_new = [x for (i, x) in enumerate(fhlist_group) if i not in invalid_idxs]
+    filedata_list = [x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs]
+    filedata_size_list = [x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs]
+
+    if filedata_size_list:
+        file_bytes_read = filedata_size_list[0]
+    else:
+        # all are invalid
+        file_bytes_read = 0
+    return (filedata_list, fhlist_group_new, unproc_files, file_bytes_read)
+
+
 def read_filelist(filelist_group, filepos, amt_file_read):
     """Read amt_file_read bytes starting at filepos in list of files.
 
@@ -422,7 +484,9 @@ def read_filelist(filelist_group, filepos, amt_file_read):
         filelist_group_new: version of filelist_group with unproc_files
             removed
         filedata_list: list of arrays of read file data
-        unproc_files: files that were unreadable due to errors
+        unproc_files: list of files that were unreadable due to errors,
+            each item in list:
+            [filename, error_type, error_description]
         file_bytes_read: actual number of bytes read from every valid file
     """
     filedata_list = []
@@ -516,68 +580,122 @@ def compare_file_group(filelist, fileblocks):
 
     # right now only one prospective group of files, split later if distinct
     #   file groups are found
-    filelist_groups_next = [filelist]
+    # If group is small enough, we can keep all files open while reading
+    # If group is too big, we open each file one at a time
+    open_filehandles = []
+    if len(filelist) < MAX_FILES_OPEN:
+        # TODO: handle errors for opening these files
+        for filename in filelist:
+            try:
+                fh = open(filename,'rb')
+            except OSError as e:
+                # e.g. FileNotFoundError, PermissionError
+                #myerr.print(str(e))
+                unproc_files.append([filename, str(type(e)), str(e)])
+                #print("Can't open "+filename)
+            except:
+                print("UNHANDLED ERROR WITH OPENING "+filename)
+                unproc_files.append(filename)
+                print(unproc_files)
+            else:
+                open_filehandles.append(fh)
+        # list containing one item that is a list of filehandles
+        filelist_groups_next = [open_filehandles[:]]
+        # TODO: what if open_filehandles is empty or 1 file due
+        #   to file open errors?  how does rest of code handle that?
+    else:
+        # list containing one item that is a list of filenames
+        filelist_groups_next = [filelist]
+    try:
+        while filelist_groups_next: # i.e. while len > 0
+            filelist_groups = filelist_groups_next[:]
+            # reset next groups
+            filelist_groups_next = []
 
-    # TODO: if total files is small enough  (< 100?), keep them all open while
-    #   reading, close when they are called unique or dup  (Or at very end!)
-    while filelist_groups_next: # i.e. while len > 0
-        filelist_groups = filelist_groups_next[:]
-        # reset next groups
-        filelist_groups_next = []
+            # for debugging print current groups every time through
+            #print([len(x) for x in filelist_groups])
 
-        # for debugging print current groups every time through
-        #print([len(x) for x in filelist_groups])
-
-        # each filelist_group is a possible set of duplicate files
-        # a file is split off from a filelist_group as it is shown to be
-        #   different from others in group, either to a subgroup of matching
-        #   files or by itself
-        for filelist_group in filelist_groups:
-            (filedata_list, filelist_group, this_unproc_files, file_bytes_read
-                    ) = read_filelist(filelist_group, filepos, amt_file_read)
-            unproc_files.extend(this_unproc_files)
-
-            # get groups of indicies with datachunks that match each other
-            (match_idx_groups, single_idx_groups) = matching_array_groups(
-                    filedata_list)
-            unique_files.extend(
-                    [filelist_group[s_i_g] for s_i_g in single_idx_groups])
-
-            # we stop reading a file if it is confirmed unique, or if we get
-            #   to the end of the file
-
-            # for each group > 1 member, see if we need to keep searching it
-            #   or got to end of files
-            for match_idx_group in match_idx_groups:
-                # all filedata_sizes in matching group should be equal, so
-                #   check the first one as representve
-                if file_bytes_read < amt_file_read:
-                    # if bytes read is less data than we tried to
-                    #   read, we are at end of files and this is a final
-                    #   dupgroup
-                    this_dup_group_list = [filelist_group[i] for i in match_idx_group]
-                    this_dup_blocks = fileblocks[this_dup_group_list[0]]
-                    dup_groups.append([this_dup_blocks, this_dup_group_list])
+            # each filelist_group is a possible set of duplicate files
+            # a file is split off from a filelist_group as it is shown to be
+            #   different from others in group, either to a subgroup of matching
+            #   files or by itself
+            for filelist_group in filelist_groups:
+                if open_filehandles:
+                    # in this case, filelist_group is a list of filehandles
+                    (filedata_list,
+                            filelist_group,
+                            this_unproc_files,
+                            file_bytes_read
+                            ) = read_filehandle_list(filelist_group,
+                                    amt_file_read)
+                    unproc_files.extend(this_unproc_files)
                 else:
-                    # if filedata size is amt_file_read then not at end of
-                    #   files, keep reading / checking
-                    filelist_groups_next.append(
-                            [filelist_group[i] for i in match_idx_group])
+                    # in this case, filelist_group is a list of strings
+                    #   specifying filenames
+                    (filedata_list,
+                            filelist_group,
+                            this_unproc_files,
+                            file_bytes_read
+                            ) = read_filelist(filelist_group,
+                                    filepos,
+                                    amt_file_read)
+                    unproc_files.extend(this_unproc_files)
 
-        # increment file position for reading next time through groups
-        filepos = filepos + amt_file_read
+                # get groups of indicies with datachunks that match each other
+                (match_idx_groups, single_idx_groups) = matching_array_groups(
+                        filedata_list)
 
-        if filelist_groups_next: # i.e if non-empty
-            # after first pass dramatically increase file read size to max
-            # max file read is total memory to be used divided by num of files
-            #   in largest group this iter
-            # total no more than MEM_TO_USE
-            amt_file_read = MEM_TO_USE // max([len(x) for x in filelist_groups_next])
-            #amt_file_read = 5 # small for debugging
-            if amt_file_read < 5:
-                raise Exception(
-                        "compare_file_group: too many files to compare: " \
-                                + str(len(filelist)))
+                # add to list of unique files for singleton groups
+                if open_filehandles:
+                    unique_files.extend(
+                            [filelist_group[s_i_g].name for s_i_g in single_idx_groups])
+                else:
+                    unique_files.extend(
+                            [filelist_group[s_i_g] for s_i_g in single_idx_groups])
+
+                # we stop reading a file if it is confirmed unique, or if we get
+                #   to the end of the file
+
+                # for each group > 1 member, see if we need to keep searching it
+                #   or got to end of files
+                for match_idx_group in match_idx_groups:
+                    if file_bytes_read < amt_file_read:
+                        # if bytes read is less data than we tried to
+                        #   read, we are at end of files and this is a final
+                        #   dupgroup
+                        if open_filehandles:
+                            this_dup_group_list = [filelist_group[i].name for i in match_idx_group]
+                        else:
+                            this_dup_group_list = [filelist_group[i] for i in match_idx_group]
+                        this_dup_blocks = fileblocks[this_dup_group_list[0]]
+                        dup_groups.append([this_dup_blocks, this_dup_group_list])
+                    else:
+                        # if filedata size is amt_file_read then not at end of
+                        #   files, keep reading / checking
+                        filelist_groups_next.append(
+                                [filelist_group[i] for i in match_idx_group])
+
+            # increment file position for reading next time through groups
+            filepos = filepos + amt_file_read
+
+            if filelist_groups_next: # i.e if non-empty
+                # after first pass dramatically increase file read size to max
+                # max file read is total memory to be used divided by num of files
+                #   in largest group this iter
+                # total no more than MEM_TO_USE
+                amt_file_read = MEM_TO_USE // max([len(x) for x in filelist_groups_next])
+                #amt_file_read = 5 # small for debugging
+                if amt_file_read < 5:
+                    raise Exception(
+                            "compare_file_group: too many files to compare: " \
+                                    + str(len(filelist)))
+    finally:
+        # whatever happens, make sure we close all open filehandles in this
+        #   group
+        for fh in open_filehandles:
+            #print("Closing " + fh.name)
+            fh.close
+
 
     return (unique_files, dup_groups, unproc_files)
 
