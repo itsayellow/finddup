@@ -46,6 +46,8 @@ MEM_TO_USE = 512*1024*1024    # 512MB
 MEM_TO_USE = 2*1024*1024*1024 # 2GB
 MEM_TO_USE = 1024*1024*1024   # 1GB
 
+# how many files we can have open at the same time
+MAX_FILES_OPEN = 200
 
 # TODO more generalized way of specifying this
 IGNORE_FILES = {
@@ -182,7 +184,7 @@ def check_stat_file(filepath):
         #myerr.print("  Error: "+str(e))
         return (-1, -1, -1, [type(e), str(e)])
     except KeyboardInterrupt:
-        # get out if we got a keyboard interrupt
+        # get out if we get a keyboard interrupt
         raise
     except:
         e = sys.exc_info()
@@ -445,7 +447,7 @@ def read_filelist(filelist_group, filepos, amt_file_read):
             filedata_list.append(-1)
             filedata_size_list.append(-1)
         except KeyboardInterrupt:
-            # get out if we got a keyboard interrupt
+            # get out if we get a keyboard interrupt
             raise
         except:
             e = sys.exc_info()
@@ -495,9 +497,6 @@ def compare_file_group(filelist, fileblocks):
             [<size in blocks of all files>, [file1, file2, ...]
         unproc_files: list of files that cannot be opened or read
     """
-    # TODO: we can optimize by allowing multiple files open at the same time
-    #max_files_open = 1
-
     # init empty lists to append to
     unique_files = []
     dup_groups = []
