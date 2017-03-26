@@ -12,11 +12,6 @@
 #   matter for dir compare and 2.) read error, cause dir compare to be
 #   unknown
 # TODO: asterisk dirs that are dups if they contain ignored files
-# TODO: double-check which files have changed during the preceding by
-#   stating modtime on all files all over again, put changed files in
-#   "unknown" category?
-# TODO: for filegroups that have few filemembers, keep all open at same
-#   time?
 # TODO: nice to know if a directory contains only matching files, even if that
 #   directory doesn't match another directory completely
 #   i.e. dir1 is subset of dir2
@@ -61,17 +56,19 @@ IGNORE_FILES = {
 
 class StderrPrinter(object):
     r"""Prints to stderr especially for use with \r and same-line updates
-        Keeps track of whether an extra \n is needed before printing string,
-            especially in cases where the previous print string didn't have
-            one and this print string doesn't start with \r
-        Allows for easily printing error messages (regular print) amongst
-            same-line updates (starting with \r and with no finishing \n).
+
+    Keeps track of whether an extra \n is needed before printing string,
+    especially in cases where the previous print string didn't have
+    one and this print string doesn't start with \r
+
+    Allows for easily printing error messages (regular print) amongst
+    same-line updates (starting with \r and with no finishing \n).
     """
     def __init__(self):
         self.need_cr = False
 
     def print(self, text, **prkwargs):
-        """ print to stderr, automatically knowing if we need a CR beforehand
+        """Print to stderr, automatically knowing if we need a CR beforehand.
         """
         if text.startswith('\r'):
             self.need_cr = False
@@ -584,25 +581,34 @@ def compare_file_group(filelist, fileblocks):
     # If group is too big, we open each file one at a time
     open_filehandles = []
     if len(filelist) < MAX_FILES_OPEN:
-        # TODO: handle errors for opening these files
-        for filename in filelist:
-            try:
-                fh = open(filename,'rb')
-            except OSError as e:
-                # e.g. FileNotFoundError, PermissionError
-                #myerr.print(str(e))
-                unproc_files.append([filename, str(type(e)), str(e)])
-                #print("Can't open "+filename)
-            except:
-                print("UNHANDLED ERROR WITH OPENING "+filename)
-                unproc_files.append(filename)
-                print(unproc_files)
-            else:
-                open_filehandles.append(fh)
-        # list containing one item that is a list of filehandles
-        filelist_groups_next = [open_filehandles[:]]
-        # TODO: what if open_filehandles is empty or 1 file due
-        #   to file open errors?  how does rest of code handle that?
+        try:
+            for filename in filelist:
+                try:
+                    fh = open(filename,'rb')
+                except OSError as e:
+                    # e.g. FileNotFoundError, PermissionError
+                    #myerr.print(str(e))
+                    unproc_files.append([filename, str(type(e)), str(e)])
+                    #print("Can't open "+filename)
+                except KeyboardInterrupt:
+                    # get out if we get a keyboard interrupt
+                    raise
+                except:
+                    print("UNHANDLED ERROR WITH OPENING "+filename)
+                    unproc_files.append(filename)
+                    print(unproc_files)
+                else:
+                    open_filehandles.append(fh)
+            # list containing one item that is a list of filehandles
+            filelist_groups_next = [open_filehandles[:]]
+            # TODO: what if open_filehandles is empty or 1 file due
+            #   to file open errors?  how does rest of code handle that?
+        except KeyboardInterrupt:
+            # if we get a keyboard interrupt, close all open handles
+            #   and get out
+            for fh in open_filehandles:
+                fh.close
+            raise
     else:
         # list containing one item that is a list of filenames
         filelist_groups_next = [filelist]
