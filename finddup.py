@@ -293,7 +293,6 @@ def hash_files_by_size(paths, master_root):
     fileblocks = {}
     filemodtimes = {}
     filesreport_time = time.time()
-    filesdone = 0
 
     #.........................
     # local function to process one file
@@ -335,6 +334,8 @@ def hash_files_by_size(paths, master_root):
 
     # Actual hierarchical file stat processing
     for treeroot in paths:
+        # reset filesdone for each path
+        filesdone = 0
         myerr.print("Sizing: " + treeroot)
         # remove trailing slashes, etc.
         treeroot = os.path.normpath(treeroot)
