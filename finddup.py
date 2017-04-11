@@ -589,7 +589,7 @@ def compare_file_group(filelist, fileblocks):
         try:
             for filename in filelist:
                 try:
-                    fh = open(filename,'rb')
+                    fh = open(filename, 'rb')
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
                     #myerr.print(str(e))
@@ -613,7 +613,7 @@ def compare_file_group(filelist, fileblocks):
             # if we get a keyboard interrupt, close all open handles
             #   and get out
             for fh in open_filehandles:
-                fh.close
+                fh.close()
             raise
     else:
         # list containing one item that is a list of filenames
@@ -706,7 +706,7 @@ def compare_file_group(filelist, fileblocks):
         #   group
         for fh in open_filehandles:
             #print("Closing " + fh.name)
-            fh.close
+            fh.close()
 
 
     return (unique_files, dup_groups, unproc_files)
@@ -757,11 +757,13 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
             frac_done=(i+1)/len(file_size_hash),
             file=sys.stderr
             )
-    
+
     myerr.print("\nFinished comparing file data")
     return (dup_groups, unique_files)
 
-def check_files_for_chages(filemodtimes, unproc_files, dup_groups, unique_files, filetree, master_root):
+
+def check_files_for_chages(filemodtimes, unproc_files, dup_groups, unique_files,
+        filetree, master_root):
     """Look for files that have been modified during execution of this prog.
 
     Any change in a file since the beginning of this program's execution
@@ -783,8 +785,8 @@ def check_files_for_chages(filemodtimes, unproc_files, dup_groups, unique_files,
         if this_mod != filemodtimes[filepath]:
             # file has changed since start of this program
             (this_dir, this_file) = os.path.split(filepath)
-            subtree_dict(filetree, this_dir, master_root)[this_file]=-1
-            unproc_files.append([filepath,"changed"])
+            subtree_dict(filetree, this_dir, master_root)[this_file] = -1
+            unproc_files.append([filepath, "changed"])
 
             # remove filepath from dups and unique if found
             if filepath in unique_files:
@@ -792,7 +794,6 @@ def check_files_for_chages(filemodtimes, unproc_files, dup_groups, unique_files,
             for dup_group in dup_groups:
                 if filepath in dup_group[1]:
                     dup_group[1].remove(filepath)
-
 
 
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
@@ -893,7 +894,7 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
         dir B contains: file D (ID: 401), file E (ID: 405)
         ID string for dir B: [401,405]
         ID string for dir A: [[401,405],345]
-    
+
     Args:
         name: name of filepath of this directory
         subtree: dict in filetree of this directory
@@ -1190,7 +1191,7 @@ def get_frequencies(file_size_hash):
 
     for key in sorted(freq_dict):
         print("%d: %d hits"%(key, freq_dict[key]))
-    
+
     return freq_dict
 
 
