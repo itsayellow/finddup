@@ -106,7 +106,7 @@ def process_command_line(argv):
     # specifying nargs= puts outputs of parser in list (even if nargs=1)
 
     # required arguments
-    parser.add_argument('searchpaths', nargs='+',
+    parser.add_argument('searchpaths', nargs='+', metavar='searchpath',
             help="Search path(s) (recursively searched)."
             )
 
@@ -184,6 +184,7 @@ def check_stat_file(filepath):
         # get out if we get a keyboard interrupt
         raise
     except:
+        # this is really an internal error and should never happen
         e = sys.exc_info()
         myerr.print("UNHANDLED File Stat on: "+filepath)
         myerr.print("  Error: "+str(e[0]))
@@ -230,7 +231,8 @@ def subtree_dict(filetree, root, master_root):
     filetree is dict of dicts and items.  Each subdir is a nested dict
     subtree containing dicts and items.  The base of filetree corresponds
     to path master_root.  Keys are file/dir names.  Each file item is size
-    in blocks.  Items with -1 signify unknown block-size.
+    in blocks.  Items with -1 signify unknown block-size.  Each dir item
+    is another dict holding the dirs/files in that dir as keys.
 
     The base of filetree corresponds to path master_root.  This creates tree
     dict hierarchical structure if needed to get to root.
@@ -239,8 +241,8 @@ def subtree_dict(filetree, root, master_root):
         filetree: dict of dicts and items, representing full file tree of
             all searched paths
         root: filepath of desired dict subtree (absolute path preferred).
-        master_root: string that is lowest common root dir for all
-            searched files, dirs.  Corresponds to root of filetree
+        master_root: string that is highest common root dir for all
+            searched files, dirs.  Corresponds to root of dict filetree
 
     Returns:
         subtree: dict of filetree for root dir
@@ -334,7 +336,7 @@ def hash_files_by_size(paths, master_root):
 
     # Actual hierarchical file stat processing
     for treeroot in paths:
-        # reset filesdone for each path
+        # reset filesdone for each searchpath
         filesdone = 0
         myerr.print("Sizing: " + treeroot)
         # remove trailing slashes, etc.
@@ -445,6 +447,7 @@ def read_filehandle_list(fhlist_group, amt_file_read):
             # get out if we get a keyboard interrupt
             raise
         except:
+            # this is really an internal error and should never happen
             e = sys.exc_info()
             myerr.print("UNHANDLED Error opening:\n"+thisfh.name)
             myerr.print("  Error: "+str(e[0]))
@@ -512,6 +515,7 @@ def read_filelist(filelist_group, filepos, amt_file_read):
             # get out if we get a keyboard interrupt
             raise
         except:
+            # this is really an internal error and should never happen
             e = sys.exc_info()
             myerr.print("UNHANDLED Error opening:\n"+thisfile)
             myerr.print("  Error: "+str(e[0]))
@@ -595,6 +599,7 @@ def compare_file_group(filelist, fileblocks):
                     # get out if we get a keyboard interrupt
                     raise
                 except:
+                    # this is really an internal error and should never happen
                     print("UNHANDLED ERROR WITH OPENING "+filename)
                     unproc_files.append(filename)
                     print(unproc_files)
@@ -875,12 +880,12 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     """Recurse subtree of filetree, at each dir saving dir data id, size.
 
     Directories are handled after files, because the ID string for a dir
-    is based on the file IDs hierarchically contained in that dir.
+    is based on the dir/file IDs hierarchically contained in that dir.
 
     Recursion causes lowest leaf dirs to be ID'ed first
 
     Every dir ID string is alphabetized to ensure the same order for the
-    same file IDs.
+    same set of file IDs.
 
     Saves dir IDs into dir_dict.  Saves dir size in blocks into fileblocks.
     Example:
@@ -998,6 +1003,18 @@ def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
 
 
 def filedir_rel_master_root(filedir, master_root):
+    """ Returns the path of filedir relative to master_root.
+
+    If master_root is / (filesystem root dir) then return full absolute path.
+
+    Args:
+        filedir: path to be translated to relpath of master_root
+        master_root: string of root of all searched paths
+
+    Returns:
+        filedir_str: filedir path relative to master_root, or absolute if
+            master_root == "/"
+    """
     if master_root == "/":
         # all paths are abspaths
         filedir_str = filedir
@@ -1143,6 +1160,9 @@ def print_header(master_root):
 def get_frequencies(file_size_hash):
     """Collect data on equi-size file groups.
 
+    This is not for user operation of this program.  This is an optional
+    data collection for the programmer.
+
     Results:
     For each group of files that are of the same size in bytes:
         Groups of less than 46 files each account for 99% of groups
@@ -1153,7 +1173,15 @@ def get_frequencies(file_size_hash):
     keep all files in a group open at the same time and not exceed OS
     limits on open filehandles.
 
-    Poisson(gamma=0.5) Distribution?
+    Poisson(gamma=0.5) Distribution? (not exactly but close...)
+
+    Args:
+        file_size_hash: dict with key: filesize, item: list of files that are
+            that size.  (e.g. returned from hash_files_by_size() )
+
+    Returns:
+        freq_dict: key: len of file list in file_size_hash,
+            item: how many file groups in file_size_hash are that size
     """
     freq_dict = {}
     for key in file_size_hash:
