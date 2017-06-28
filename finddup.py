@@ -72,6 +72,13 @@ class StderrPrinter(object):
         """
         if text.startswith('\r'):
             self.need_cr = False
+        # we need_cr if last print specifically didn't have a \n,
+        #   and this one doesn't start with \r
+        # Most likely last one was a progress display and this one is an
+        #   error or warning.
+        # Instead of printing on the end of the line after the progress
+        #   line, it \n to the next line.
+        # [It could just as easily be a \r to erase the previous line.]
         if self.need_cr:
             print("", file=sys.stderr)
 
