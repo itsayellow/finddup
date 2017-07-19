@@ -862,11 +862,14 @@ def process_searchpaths(searchpaths):
     """
     remove_searchpath = {}
 
-    # convert to absolute paths
-    new_searchpaths = [os.path.abspath(x) for x in searchpaths]
+    # convert to absolute paths, getting real path, not linked dirs
+    new_searchpaths = [os.path.realpath(x) for x in searchpaths]
     # eliminate duplicate paths
     new_searchpaths = list(set(new_searchpaths))
     # search for paths that are subdir of another path, eliminate them
+    # TODO: this can be problemmatic if we eliminate one we need later?
+    #       Maybe kick one path out and start over from the start?
+    #       re-do this in general...
     for searchpath1 in new_searchpaths:
         for searchpath2 in new_searchpaths:
             test_relpath = os.path.relpath(searchpath1, start=searchpath2)
