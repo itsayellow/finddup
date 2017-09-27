@@ -55,7 +55,7 @@ IGNORE_FILES = {
 
 
 class StderrPrinter(object):
-    r"""Prints to stderr especially for use with \r and same-line updates
+    """Prints to stderr especially for use with \r and same-line updates
 
     Keeps track of whether an extra \n is needed before printing string,
     especially in cases where the previous print string didn't have
