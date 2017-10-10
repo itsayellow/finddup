@@ -1,0 +1,16 @@
+#!/bin/bash
+
+for i in {1..10}
+do
+
+python3 -m cProfile -o multiopen${i}_profiledata ./finddup.py /Users > multiopen${i}_out.txt
+./get_maxtime multiopen${i}_profiledata multiopen${i}_time.txt
+
+echo "multiopen${i} done"
+
+python3 -m cProfile -o singleopen${i}_profiledata ./finddup_singleopen.py /Users > singleopen${i}_out.txt
+./get_maxtime singleopen${i}_profiledata singleopen${i}_time.txt
+
+echo "singleopen${i} done"
+
+done
