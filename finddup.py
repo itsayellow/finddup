@@ -201,7 +201,11 @@ def check_stat_file(filepath):
 
     this_size = this_filestat.st_size
     this_mod = this_filestat.st_mtime
-    this_blocks = this_filestat.st_blocks
+    try:
+        this_blocks = this_filestat.st_blocks
+    except AttributeError:
+        # Windows has no st_blocks attribute
+        this_blocks = this_size//512 + (1 if this_size%512 != 0 else 0)
 
     if IGNORE_FILES.get(os.path.basename(filepath), False):
         this_size = -1
