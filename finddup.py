@@ -236,39 +236,6 @@ def check_stat_file(filepath):
     return (this_size, this_mod, this_blocks, extra_info)
 
 
-def subtree_dict(filetree, root, master_root):
-    """Return a subtree dict part of filetree master hierarchical dict
-
-    filetree is dict of dicts and items.  Each subdir is a nested dict
-    subtree containing dicts and items.  The base of filetree corresponds
-    to path master_root.  Keys are file/dir names.  Each file item is size
-    in blocks.  Items with -1 signify unknown block-size.  Each dir item
-    is another dict holding the dirs/files in that dir as keys.
-
-    The base of filetree corresponds to path master_root.  This creates tree
-    dict hierarchical structure if needed to get to root.
-
-    Args:
-        filetree: dict of dicts and items, representing full file tree of
-            all searched paths
-        root: filepath of desired dict subtree (absolute path preferred).
-        master_root: string that is highest common root dir for all
-            searched files, dirs.  Corresponds to root of dict filetree
-
-    Returns:
-        subtree: dict of filetree for root dir
-    """
-    # root includes master_root
-    root_relative = os.path.relpath(root, start=master_root)
-    #print( "  root_relative to master_root: " + root_relative)
-    subtree = filetree
-    for pathpart in root_relative.split(os.path.sep):
-        if pathpart and pathpart != '.':
-            # either get pathpart key of subtree or create new one (empty dict)
-            subtree = subtree.setdefault(pathpart, {})
-    return subtree
-
-
 def matching_array_groups(datachunks_list):
     """Return identical indicies groups from list of data chunks.
 
@@ -769,6 +736,39 @@ class DupFinder():
         self.master_root = master_root
         self.searchpaths = new_searchpaths
 
+    def _subtree_dict(self, root):
+        """Return a subtree dict part of filetree master hierarchical dict
+
+        filetree is dict of dicts and items.  Each subdir is a nested dict
+        subtree containing dicts and items.  The base of filetree corresponds
+        to path master_root.  Keys are file/dir names.  Each file item is size
+        in blocks.  Items with -1 signify unknown block-size.  Each dir item
+        is another dict holding the dirs/files in that dir as keys.
+
+        The base of filetree corresponds to path master_root.  This creates tree
+        dict hierarchical structure if needed to get to root.
+
+        Args:
+            filetree: dict of dicts and items, representing full file tree of
+                all searched paths
+            root: filepath of desired dict subtree (absolute path preferred).
+            master_root: string that is highest common root dir for all
+                searched files, dirs.  Corresponds to root of dict filetree
+
+        Returns:
+            subtree: dict of filetree for root dir
+        """
+        # root includes master_root
+        root_relative = os.path.relpath(root, start=self.master_root)
+        #print( "  root_relative to master_root: " + root_relative)
+        subtree = self.filetree
+        for pathpart in root_relative.split(os.path.sep):
+            if pathpart and pathpart != '.':
+                # either get pathpart key of subtree or create new one (empty dict)
+                subtree = subtree.setdefault(pathpart, {})
+        return subtree
+
+
     def hash_files_by_size(self):
         """Hierarchically search through paths and has by file size in bytes
 
@@ -830,7 +830,7 @@ class DupFinder():
             #   determining dir sameness
             # all ignored files that cause return above will be ignored for
             #   determining dir sameness
-            subtree_dict(self.filetree, root, self.master_root)[filename] = -1
+            self._subtree_dict(root)[filename] = -1
 
             # setdefault returns [] if this_size key is not found
             # append as item to self.file_size_hash [filepath,filemodtime] to check if
@@ -949,7 +949,7 @@ class DupFinder():
             if this_mod != self.filemodtimes[filepath]:
                 # file has changed since start of this program
                 (this_dir, this_file) = os.path.split(filepath)
-                subtree_dict(self.filetree, this_dir, self.master_root)[this_file] = -1
+                self._subtree_dict(this_dir)[this_file] = -1
                 self.unproc_files.append([filepath, "changed"])
 
                 # remove filepath from dups and unique if found
@@ -987,7 +987,7 @@ class DupFinder():
 
             # add id to tree
             (unq_dir, unq_file) = os.path.split(unq_file)
-            subtree_dict(self.filetree, unq_dir, self.master_root)[unq_file] = idnum
+            self._subtree_dict(unq_dir)[unq_file] = idnum
 
             idnum += 1
         for dup_group in self.dup_groups:
@@ -996,7 +996,7 @@ class DupFinder():
 
                 # add id to tree
                 (dup_dir, dup_file) = os.path.split(dup_file)
-                subtree_dict(self.filetree, dup_dir, self.master_root)[dup_file] = idnum
+                self._subtree_dict(dup_dir)[dup_file] = idnum
             idnum += 1
 
     def recurse_analyze_filetree(self):
