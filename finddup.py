@@ -695,23 +695,6 @@ def filedir_rel_master_root(filedir, master_root):
     return filedir_str
 
 
-def print_sorted_uniques(unique_files, master_root):
-    """Print report of sorted list of unique files and directories
-
-    Sort list of unique files and directories alphabetically.
-
-    Args:
-        unique_files: list of unique file/dir paths
-        master_root: string that is lowest common parent dir path of all
-            searched files
-    """
-    print("\n\nUnique Files/Directories:")
-    print("----------------")
-    for filedir in sorted(unique_files):
-        filedir_str = filedir_rel_master_root(filedir, master_root)
-        print(filedir_str)
-
-
 def get_frequencies(file_size_hash):
     """Collect data on equi-size file groups.
 
@@ -1123,7 +1106,7 @@ class DupFinder():
         """
         if self.master_root != "/":
             print("All file paths referenced from:\n"+self.master_root)
-    
+
     def print_sorted_dups(self):
         """Print report of sorted duplicate files and directories.
 
@@ -1145,10 +1128,23 @@ class DupFinder():
                 filedir_str = filedir_rel_master_root(filedir, self.master_root)
                 print("  %s"%filedir_str)
 
-    def print_sorted_uniques2(self):
-        unique_files = self.unique_files
-        unique_files.extend(self.unique_dirs)
-        print_sorted_uniques(unique_files, self.master_root)
+    def print_sorted_uniques(self):
+        """Print report of sorted list of unique files and directories
+
+        Sort list of unique files and directories alphabetically.
+
+        Args:
+            unique_files: list of unique file/dir paths
+            master_root: string that is lowest common parent dir path of all
+                searched files
+        """
+        unique_filedirs = self.unique_files
+        unique_filedirs.extend(self.unique_dirs)
+        print("\n\nUnique Files/Directories:")
+        print("----------------")
+        for filedir in sorted(unique_filedirs):
+            filedir_str = filedir_rel_master_root(filedir, self.master_root)
+            print(filedir_str)
 
     def print_unproc_files(self):
         """Print report of all files unable to be processed.
@@ -1306,7 +1302,7 @@ def main(argv=None):
     dup_find.print_sorted_dups()
 
     # print a sorted (alphabetical) list of unique files and dirs
-    dup_find.print_sorted_uniques2()
+    dup_find.print_sorted_uniques()
 
     # print lists of unprocessed files
     dup_find.print_unproc_files()
