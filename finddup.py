@@ -158,6 +158,7 @@ def check_stat_file(filepath, ignore_files):
 
     Args:
         filepath: path to file to check
+        ignore_files: dict with filenames to ignore as keys, True as value
 
     Returns:
         this_size: integer size of file in bytes from file stat.  -1 if
