@@ -269,116 +269,6 @@ def subtree_dict(filetree, root, master_root):
     return subtree
 
 
-def hash_files_by_size(paths, master_root):
-    """Hierarchically search through paths and has by file size in bytes
-
-    Hierarchically traverse argument paths, and for every file make dict
-    with keys being filesize in bytes and item being list of files
-    that match
-
-    Record heirarchical filetree containing dict of dicts structure
-    mirroring dir/file hierarchy.
-
-    Record the size in blocks into a dict for every file (keys are
-    filepaths, items are size in blocks.)
-
-    Record the modification time for every file (allowing us to check
-    later if they changed during processing of this program.)
-
-    Args:
-        paths: search paths (each can be dir or file)
-        master_root: string that is lowest common root dir for all
-            searched files, dirs
-
-    Returns:
-        file_size_hash: key-size in bytes, item-list of files with that
-            size
-        filetree: dict of items and dicts corresponding to directory
-            hierarchy of paths searched.  root of tree is master_root path
-        filemodtimes: key-filepath, item-file modif. datetime
-        fileblocks: key-filepath, item-size in blocks
-        unproc_files: list of files ignored or unable to be read
-    """
-
-    unproc_files = []
-    file_size_hash = {}
-    filetree = {}
-    fileblocks = {}
-    filemodtimes = {}
-    filesreport_time = time.time()
-
-    #.........................
-    # local function to process one file
-    def process_file_size():
-        """ Get size and otherwise catalog one file
-        """
-        # read/write these from hash_files_by_size scope
-        nonlocal filesdone, filesreport_time
-
-        filepath = os.path.join(root, filename)
-        (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                filepath)
-        # if valid blocks then record for dir block tally
-        if this_blocks != -1:
-            fileblocks[filepath] = this_blocks
-        if this_size == -1:
-            unproc_files.append([filepath]+extra_info)
-            return
-
-        # set filename branch of filetree to -1 (placeholder, meaning no id)
-        # adding to filetree means it will be taken into account when
-        #   determining dir sameness
-        # all ignored files that cause return above will be ignored for
-        #   determining dir sameness
-        subtree_dict(filetree, root, master_root)[filename] = -1
-
-        # setdefault returns [] if this_size key is not found
-        # append as item to file_size_hash [filepath,filemodtime] to check if
-        #   modified later
-        file_size_hash.setdefault(this_size, []).append(filepath)
-        filemodtimes[filepath] = this_mod
-
-        filesdone += 1
-        if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
-            myerr.print(
-                    "\r  "+str(filesdone)+" files sized.", end='', flush=True)
-            filesreport_time = time.time()
-    #.........................
-
-    # Actual hierarchical file stat processing
-    for treeroot in paths:
-        # reset filesdone for each searchpath
-        filesdone = 0
-        myerr.print("Sizing: " + treeroot)
-        # remove trailing slashes, etc.
-        treeroot = os.path.normpath(treeroot)
-        if os.path.isdir(treeroot):
-            for (root, _, files) in os.walk(treeroot):
-                # TODO: get modtime on directories too, to see if they change?
-                for filename in files:
-                    process_file_size()
-        else:
-            # this treeroot was a file
-            (root, filename) = os.path.split(treeroot)
-            process_file_size()
-
-        # print final tally with CR
-        myerr.print("\r  "+str(filesdone)+" files sized.")
-
-    # tally unique, possibly duplicate files
-    unique = 0
-    nonunique = 0
-    for key in file_size_hash:
-        if len(file_size_hash[key]) == 1:
-            unique += 1
-        else:
-            nonunique += len(file_size_hash[key])
-    myerr.print("\nUnique: %d    "%unique)
-    myerr.print("Possibly Non-Unique: %d\n"%nonunique)
-
-    return (file_size_hash, filetree, filemodtimes, fileblocks, unproc_files)
-
-
 def matching_array_groups(datachunks_list):
     """Return identical indicies groups from list of data chunks.
 
@@ -1227,10 +1117,118 @@ class DupFinder():
         self.master_root = master_root
         self.searchpaths = new_searchpaths
 
-    def hash_files_by_size2(self):
-        (self.file_size_hash, self.filetree, self.filemodtimes, self.fileblocks,
-                self.unproc_files
-                ) = hash_files_by_size(self.searchpaths, self.master_root)
+    def hash_files_by_size(self):
+        """Hierarchically search through paths and has by file size in bytes
+
+        Hierarchically traverse argument paths, and for every file make dict
+        with keys being filesize in bytes and item being list of files
+        that match
+
+        Record heirarchical filetree containing dict of dicts structure
+        mirroring dir/file hierarchy.
+
+        Record the size in blocks into a dict for every file (keys are
+        filepaths, items are size in blocks.)
+
+        Record the modification time for every file (allowing us to check
+        later if they changed during processing of this program.)
+
+        Args:
+            paths: search paths (each can be dir or file)
+            master_root: string that is lowest common root dir for all
+                searched files, dirs
+
+        Returns:
+            file_size_hash: key-size in bytes, item-list of files with that
+                size
+            filetree: dict of items and dicts corresponding to directory
+                hierarchy of paths searched.  root of tree is master_root path
+            filemodtimes: key-filepath, item-file modif. datetime
+            fileblocks: key-filepath, item-size in blocks
+            unproc_files: list of files ignored or unable to be read
+        """
+
+        unproc_files = []
+        file_size_hash = {}
+        filetree = {}
+        fileblocks = {}
+        filemodtimes = {}
+        filesreport_time = time.time()
+
+        #.........................
+        # local function to process one file
+        def process_file_size():
+            """ Get size and otherwise catalog one file
+            """
+            # read/write these from hash_files_by_size scope
+            nonlocal filesdone, filesreport_time
+
+            filepath = os.path.join(root, filename)
+            (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
+                    filepath)
+            # if valid blocks then record for dir block tally
+            if this_blocks != -1:
+                fileblocks[filepath] = this_blocks
+            if this_size == -1:
+                unproc_files.append([filepath]+extra_info)
+                return
+
+            # set filename branch of filetree to -1 (placeholder, meaning no id)
+            # adding to filetree means it will be taken into account when
+            #   determining dir sameness
+            # all ignored files that cause return above will be ignored for
+            #   determining dir sameness
+            subtree_dict(filetree, root, self.master_root)[filename] = -1
+
+            # setdefault returns [] if this_size key is not found
+            # append as item to file_size_hash [filepath,filemodtime] to check if
+            #   modified later
+            file_size_hash.setdefault(this_size, []).append(filepath)
+            filemodtimes[filepath] = this_mod
+
+            filesdone += 1
+            if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
+                myerr.print(
+                        "\r  "+str(filesdone)+" files sized.", end='', flush=True)
+                filesreport_time = time.time()
+        #.........................
+
+        # Actual hierarchical file stat processing
+        for treeroot in self.searchpaths:
+            # reset filesdone for each searchpath
+            filesdone = 0
+            myerr.print("Sizing: " + treeroot)
+            # remove trailing slashes, etc.
+            treeroot = os.path.normpath(treeroot)
+            if os.path.isdir(treeroot):
+                for (root, _, files) in os.walk(treeroot):
+                    # TODO: get modtime on directories too, to see if they change?
+                    for filename in files:
+                        process_file_size()
+            else:
+                # this treeroot was a file
+                (root, filename) = os.path.split(treeroot)
+                process_file_size()
+
+            # print final tally with CR
+            myerr.print("\r  "+str(filesdone)+" files sized.")
+
+        # tally unique, possibly duplicate files
+        unique = 0
+        nonunique = 0
+        for key in file_size_hash:
+            if len(file_size_hash[key]) == 1:
+                unique += 1
+            else:
+                nonunique += len(file_size_hash[key])
+        myerr.print("\nUnique: %d    "%unique)
+        myerr.print("Possibly Non-Unique: %d\n"%nonunique)
+
+        self.file_size_hash = file_size_hash
+        self.filetree = filetree
+        self.filemodtimes = filemodtimes
+        self.fileblocks = fileblocks
+        self.unproc_files = unproc_files
 
     def compare_files2(self):
         (self.dup_groups, self.unique_files) = compare_files(
@@ -1307,7 +1305,7 @@ def main(argv=None):
     #   filepaths that are all that size (lists are all len > 1)
     # filemodtimes is dict: keys are filepaths, items are modtimes when file
     #   was stat'ed
-    dup_find.hash_files_by_size2()
+    dup_find.hash_files_by_size()
 
     # DEBUG find frequencies of group sizes (collect statistics)
     #freq_dict = get_frequencies(file_size_hash)
