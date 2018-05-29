@@ -894,8 +894,8 @@ class DupFinder():
                 [size in blocks of duplicate files, list of duplicate files]
             unique_files: list of filepaths that are unique
         """
-        unique_files = []
-        dup_groups = []
+        self.unique_files = []
+        self.dup_groups = []
 
         compare_files_timer = tictoc.Timer()
         compare_files_timer.start()
@@ -905,8 +905,8 @@ class DupFinder():
         for (i, key) in enumerate(self.file_size_hash.keys()):
             (this_unique_files, this_dup_groups, this_unproc_files
                     ) = compare_file_group(self.file_size_hash[key], self.fileblocks)
-            unique_files.extend(this_unique_files)
-            dup_groups.extend(this_dup_groups)
+            self.unique_files.extend(this_unique_files)
+            self.dup_groups.extend(this_dup_groups)
             self.unproc_files.extend(this_unproc_files)
             if compare_files_timer.eltime() > old_time+0.4:
                 old_time = compare_files_timer.eltime()
@@ -922,9 +922,6 @@ class DupFinder():
                 )
 
         myerr.print("\nFinished comparing file data")
-
-        self.dup_groups = dup_groups
-        self.unique_files = unique_files
 
     def check_files_for_changes(self):
         """Look for files that have been modified during execution of this prog.
