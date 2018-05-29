@@ -815,17 +815,6 @@ def print_unknown_dirs(unknown_dirs, master_root):
             print("  "+filedir_str)
 
 
-def print_header(master_root):
-    """Print header information to start report on files and directories.
-
-    Args:
-        master_root: string that is lowest common parent dir path of all
-            searched files
-    """
-    if master_root != "/":
-        print("All file paths referenced from:\n"+master_root)
-
-
 def get_frequencies(file_size_hash):
     """Collect data on equi-size file groups.
 
@@ -1228,8 +1217,15 @@ class DupFinder():
         self.unique_dirs = unique_dirs
         self.unknown_dirs = unknown_dirs
 
-    def print_header2(self):
-        print_header(self.master_root)
+    def print_header(self):
+        """Print header information to start report on files and directories.
+
+        Args:
+            master_root: string that is lowest common parent dir path of all
+                searched files
+        """
+        if self.master_root != "/":
+            print("All file paths referenced from:\n"+self.master_root)
     
     def print_sorted_dups2(self):
         print_sorted_dups(self.dup_groups, self.master_root)
@@ -1314,7 +1310,7 @@ def main(argv=None):
     # PRINT REPORT
 
     # header for report
-    dup_find.print_header2()
+    dup_find.print_header()
 
     # print a sorted (biggest dir/files first) list of dup groups,
     #   alphabetical within each group
