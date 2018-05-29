@@ -800,11 +800,11 @@ class DupFinder():
             unproc_files: list of files ignored or unable to be read
         """
 
-        unproc_files = []
-        file_size_hash = {}
-        filetree = {}
-        fileblocks = {}
-        filemodtimes = {}
+        self.unproc_files = []
+        self.file_size_hash = {}
+        self.filetree = {}
+        self.fileblocks = {}
+        self.filemodtimes = {}
         filesreport_time = time.time()
 
         #.........................
@@ -820,23 +820,23 @@ class DupFinder():
                     filepath)
             # if valid blocks then record for dir block tally
             if this_blocks != -1:
-                fileblocks[filepath] = this_blocks
+                self.fileblocks[filepath] = this_blocks
             if this_size == -1:
-                unproc_files.append([filepath]+extra_info)
+                self.unproc_files.append([filepath]+extra_info)
                 return
 
-            # set filename branch of filetree to -1 (placeholder, meaning no id)
-            # adding to filetree means it will be taken into account when
+            # set filename branch of self.filetree to -1 (placeholder, meaning no id)
+            # adding to self.filetree means it will be taken into account when
             #   determining dir sameness
             # all ignored files that cause return above will be ignored for
             #   determining dir sameness
-            subtree_dict(filetree, root, self.master_root)[filename] = -1
+            subtree_dict(self.filetree, root, self.master_root)[filename] = -1
 
             # setdefault returns [] if this_size key is not found
-            # append as item to file_size_hash [filepath,filemodtime] to check if
+            # append as item to self.file_size_hash [filepath,filemodtime] to check if
             #   modified later
-            file_size_hash.setdefault(this_size, []).append(filepath)
-            filemodtimes[filepath] = this_mod
+            self.file_size_hash.setdefault(this_size, []).append(filepath)
+            self.filemodtimes[filepath] = this_mod
 
             filesdone += 1
             if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
@@ -868,19 +868,13 @@ class DupFinder():
         # tally unique, possibly duplicate files
         unique = 0
         nonunique = 0
-        for key in file_size_hash:
-            if len(file_size_hash[key]) == 1:
+        for key in self.file_size_hash:
+            if len(self.file_size_hash[key]) == 1:
                 unique += 1
             else:
-                nonunique += len(file_size_hash[key])
+                nonunique += len(self.file_size_hash[key])
         myerr.print("\nUnique: %d    "%unique)
         myerr.print("Possibly Non-Unique: %d\n"%nonunique)
-
-        self.file_size_hash = file_size_hash
-        self.filetree = filetree
-        self.filemodtimes = filemodtimes
-        self.fileblocks = fileblocks
-        self.unproc_files = unproc_files
 
     def compare_files(self):
         """Determine duplicate, unique files from file data
