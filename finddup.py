@@ -671,74 +671,6 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     return hier_id_str
 
 
-def recurse_analyze_filetree(filetree, master_root, fileblocks, dup_groups):
-    """Create dir ids for each dir represented in filetree and find dups, etc.
-
-    Inventory directories based on identical/non-identical data in files
-    in the hierarchy of each directory (ignoring file/dir names)
-
-    Create unique ID string for each directory that has unique hierarchical
-    contents (based on file data).  For directories that have identical
-    hierarchical files/data, give the same ID string.
-
-    Find duplicate directories, and save their total size in blocks.  Also
-    find unique directories.
-
-    dir_dict: key: hash based on dir hierarchical contents, item: dir path
-
-    Args:
-        filetree: READ/WRITE
-        master_root: string that is lowest common parent dir path of all
-            searched files
-        fileblocks: READ/WRITE dict where key is path to file/dir, item
-            is size of file/dir in blocks
-        dup_groups: READ/WRITE list of duplicate file/dir groups.  Duplicate
-            directory groups are added to this.  Format for each sublist
-            of this list:
-            [size in blocks of duplicate dirs, list of duplicate dirs]
-
-    Returns:
-        unique_dirs: list of directories that are not a duplicate of
-            any other known directory
-        unknown_dirs: list of directories with an unknown file in the
-            hierarchy, making these directories also "unknown"
-    """
-    dup_dirs = []
-    unique_dirs = []
-    dir_dict = {}
-
-    # recurse_subtree creates a string representation of every subdir
-    #   represented in filetree, based on the a hierarchical concatenation of
-    #   the file ids in each subdir's hierarchy of files
-    recurse_subtree(master_root, filetree, dir_dict, fileblocks)
-
-    # unknown dirs show up with key of "-1", don't consider them for matching
-    unknown_dirs = dir_dict.get("-1", [])
-    # add trailing slash to all dir names
-    unknown_dirs = [x + os.path.sep for x in unknown_dirs]
-    if unknown_dirs:
-        del dir_dict["-1"]
-
-    # find set of unique dirs, sets of duplicate dirs
-    for dirkey in dir_dict:
-        # first dir path in group (only one if group size = 1)
-        first_dir = dir_dict[dirkey][0]
-        if len(dir_dict[dirkey]) > 1:
-            # duplicate dir group
-            this_blocks = fileblocks[first_dir]
-            dup_dirs.append(
-                    [this_blocks, [x+os.path.sep for x in dir_dict[dirkey]]])
-        elif len(dir_dict[dirkey]) == 1:
-            # unique dirs
-            unique_dirs.append(first_dir + os.path.sep)
-        else:
-            raise Exception("Internal error: recurse_analyze_filetree has"\
-                    " zero-size dir group.")
-    dup_groups.extend(dup_dirs)
-
-    return (unique_dirs, unknown_dirs)
-
-
 def filedir_rel_master_root(filedir, master_root):
     """ Returns the path of filedir relative to master_root.
 
@@ -1228,9 +1160,73 @@ class DupFinder():
                 subtree_dict(self.filetree, dup_dir, self.master_root)[dup_file] = idnum
             idnum += 1
 
-    def recurse_analyze_filetree2(self):
-        (self.unique_dirs, self.unknown_dirs) = recurse_analyze_filetree(
-            self.filetree, self.master_root, self.fileblocks, self.dup_groups)
+    def recurse_analyze_filetree(self):
+        """Create dir ids for each dir represented in filetree and find dups, etc.
+
+        Inventory directories based on identical/non-identical data in files
+        in the hierarchy of each directory (ignoring file/dir names)
+
+        Create unique ID string for each directory that has unique hierarchical
+        contents (based on file data).  For directories that have identical
+        hierarchical files/data, give the same ID string.
+
+        Find duplicate directories, and save their total size in blocks.  Also
+        find unique directories.
+
+        dir_dict: key: hash based on dir hierarchical contents, item: dir path
+
+        Args:
+            filetree: READ/WRITE
+            master_root: string that is lowest common parent dir path of all
+                searched files
+            fileblocks: READ/WRITE dict where key is path to file/dir, item
+                is size of file/dir in blocks
+            dup_groups: READ/WRITE list of duplicate file/dir groups.  Duplicate
+                directory groups are added to this.  Format for each sublist
+                of this list:
+                [size in blocks of duplicate dirs, list of duplicate dirs]
+
+        Returns:
+            unique_dirs: list of directories that are not a duplicate of
+                any other known directory
+            unknown_dirs: list of directories with an unknown file in the
+                hierarchy, making these directories also "unknown"
+        """
+        dup_dirs = []
+        unique_dirs = []
+        dir_dict = {}
+
+        # recurse_subtree creates a string representation of every subdir
+        #   represented in filetree, based on the a hierarchical concatenation of
+        #   the file ids in each subdir's hierarchy of files
+        recurse_subtree(self.master_root, self.filetree, dir_dict, self.fileblocks)
+
+        # unknown dirs show up with key of "-1", don't consider them for matching
+        unknown_dirs = dir_dict.get("-1", [])
+        # add trailing slash to all dir names
+        unknown_dirs = [x + os.path.sep for x in unknown_dirs]
+        if unknown_dirs:
+            del dir_dict["-1"]
+
+        # find set of unique dirs, sets of duplicate dirs
+        for dirkey in dir_dict:
+            # first dir path in group (only one if group size = 1)
+            first_dir = dir_dict[dirkey][0]
+            if len(dir_dict[dirkey]) > 1:
+                # duplicate dir group
+                this_blocks = self.fileblocks[first_dir]
+                dup_dirs.append(
+                        [this_blocks, [x+os.path.sep for x in dir_dict[dirkey]]])
+            elif len(dir_dict[dirkey]) == 1:
+                # unique dirs
+                unique_dirs.append(first_dir + os.path.sep)
+            else:
+                raise Exception("Internal error: recurse_analyze_filetree has"\
+                        " zero-size dir group.")
+        self.dup_groups.extend(dup_dirs)
+
+        self.unique_dirs = unique_dirs
+        self.unknown_dirs = unknown_dirs
 
     def print_header2(self):
         print_header(self.master_root)
@@ -1313,7 +1309,7 @@ def main(argv=None):
     # unknown_dirs are any dir that we couldn't check any of the files due to
     #   file issues, etc.
     # fileblocks gives info on file sizes, used to compute directory total size
-    dup_find.recurse_analyze_filetree2()
+    dup_find.recurse_analyze_filetree()
 
     # PRINT REPORT
 
