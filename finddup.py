@@ -773,7 +773,7 @@ def compare_files(file_size_hash, fileblocks, unproc_files):
     return (dup_groups, unique_files)
 
 
-def check_files_for_chages(filemodtimes, unproc_files, dup_groups, unique_files,
+def check_files_for_changes(filemodtimes, unproc_files, dup_groups, unique_files,
         filetree, master_root):
     """Look for files that have been modified during execution of this prog.
 
@@ -846,49 +846,6 @@ def create_file_ids(dup_groups, unique_files, filetree, master_root):
             (dup_dir, dup_file) = os.path.split(dup_file)
             subtree_dict(filetree, dup_dir, master_root)[dup_file] = idnum
         idnum += 1
-
-
-def process_searchpaths(searchpaths):
-    """Regularize searchpaths and remove redundants, get parent root of all.
-
-    Convert all searchpaths to absolute paths.
-
-    Remove duplicate searchpaths, or searchpaths contained completely
-    inside another search path.
-
-    Args:
-        searchpaths: strings of search paths, relative or absolute
-
-    Returns:
-        master_root: string that is lowest common root dir for all
-            searched files, dirs
-        new_searchpaths: absolute paths, duplicates removed
-    """
-    remove_searchpath = {}
-
-    # convert to absolute paths, getting real path, not linked dirs
-    new_searchpaths = [os.path.realpath(x) for x in searchpaths]
-    # eliminate duplicate paths
-    new_searchpaths = list(set(new_searchpaths))
-    # search for paths that are subdir of another path, eliminate them
-    # TODO: this can be problemmatic if we eliminate one we need later?
-    #       Maybe kick one path out and start over from the start?
-    #       re-do this in general...
-    for searchpath1 in new_searchpaths:
-        for searchpath2 in new_searchpaths:
-            test_relpath = os.path.relpath(searchpath1, start=searchpath2)
-            if test_relpath != '.' and not test_relpath.startswith('..'):
-                # if '.' : searchpath1 and searchpath2 are same path
-                #   (search artifact)
-                # if relpath doesn't start with .. , then searchpath1 is
-                #   subdir of searchpath2
-                remove_searchpath[searchpath1] = True
-    for (i, searchpath) in enumerate(new_searchpaths):
-        if remove_searchpath.get(searchpath, False):
-            del new_searchpaths[i]
-
-    master_root = os.path.commonpath(new_searchpaths)
-    return (master_root, new_searchpaths)
 
 
 def recurse_subtree(name, subtree, dir_dict, fileblocks):
@@ -1209,6 +1166,114 @@ def get_frequencies(file_size_hash):
     return freq_dict
 
 
+class DupFinder():
+    def __init__(self, searchpaths):
+        self.searchpaths = None
+        self.master_root = None
+        self.file_size_hash = None
+        self.filetree = None
+        self.filemodtimes = None
+        self.fileblocks = None
+        self.unproc_files = None
+        self.dup_groups = None
+        self.unique_files = None
+        self.unique_dirs = None
+        self.unknown_dirs = None
+
+        # eliminate duplicates, and paths that are sub-paths of other
+        #   searchpaths
+        self._process_searchpaths(searchpaths)
+
+    def _process_searchpaths(self, searchpaths):
+        """Regularize searchpaths and remove redundants, get parent root of all.
+
+        Convert all searchpaths to absolute paths.
+
+        Remove duplicate searchpaths, or searchpaths contained completely
+        inside another search path.
+
+        Args:
+            searchpaths: strings of search paths, relative or absolute
+
+        Affects:
+            self.master_root: string that is lowest common root dir for all
+                searched files, dirs
+            self.searchpaths: absolute paths, duplicates removed
+        """
+        remove_searchpath = {}
+
+        # convert to absolute paths, getting real path, not linked dirs
+        new_searchpaths = [os.path.realpath(x) for x in searchpaths]
+        # eliminate duplicate paths
+        new_searchpaths = list(set(new_searchpaths))
+        # search for paths that are subdir of another path, eliminate them
+        # TODO: this can be problemmatic if we eliminate one we need later?
+        #       Maybe kick one path out and start over from the start?
+        #       re-do this in general...
+        for searchpath1 in new_searchpaths:
+            for searchpath2 in new_searchpaths:
+                test_relpath = os.path.relpath(searchpath1, start=searchpath2)
+                if test_relpath != '.' and not test_relpath.startswith('..'):
+                    # if '.' : searchpath1 and searchpath2 are same path
+                    #   (search artifact)
+                    # if relpath doesn't start with .. , then searchpath1 is
+                    #   subdir of searchpath2
+                    remove_searchpath[searchpath1] = True
+        for (i, searchpath) in enumerate(new_searchpaths):
+            if remove_searchpath.get(searchpath, False):
+                del new_searchpaths[i]
+
+        master_root = os.path.commonpath(new_searchpaths)
+        self.master_root = master_root
+        self.searchpaths = new_searchpaths
+
+    def hash_files_by_size2(self):
+        (self.file_size_hash, self.filetree, self.filemodtimes, self.fileblocks,
+                self.unproc_files
+                ) = hash_files_by_size(self.searchpaths, self.master_root)
+
+    def compare_files2(self):
+        (self.dup_groups, self.unique_files) = compare_files(
+                self.file_size_hash, self.fileblocks, self.unproc_files)
+
+    def check_files_for_changes2(self):
+        check_files_for_changes(
+                self.filemodtimes,
+                self.unproc_files,
+                self.dup_groups,
+                self.unique_files,
+                self.filetree,
+                self.master_root
+                )
+    def create_file_ids2(self):
+        create_file_ids(
+                self.dup_groups,
+                self.unique_files,
+                self.filetree,
+                self.master_root
+                )
+
+    def recurse_analyze_filetree2(self):
+        (self.unique_dirs, self.unknown_dirs) = recurse_analyze_filetree(
+            self.filetree, self.master_root, self.fileblocks, self.dup_groups)
+
+    def print_header2(self):
+        print_header(self.master_root)
+    
+    def print_sorted_dups2(self):
+        print_sorted_dups(self.dup_groups, self.master_root)
+
+    def print_sorted_uniques2(self):
+        unique_files = self.unique_files
+        unique_files.extend(self.unique_dirs)
+        print_sorted_uniques(unique_files, self.master_root)
+
+    def print_unproc_files2(self):
+        print_unproc_files(self.unproc_files, self.master_root)
+    
+    def print_unknown_dirs2(self):
+        print_unknown_dirs(self.unknown_dirs, self.master_root)
+
 #   1. For every file, get: size, mod_time
 #   2. hash by sizes, each hash size in dict fill with list of all files
 #       that size
@@ -1234,8 +1299,7 @@ def main(argv=None):
     mytimer.start()
     args = process_command_line(argv)
 
-    # eliminate duplicates, and paths that are sub-paths of other searchpaths
-    (master_root, searchpaths) = process_searchpaths(args.searchpaths)
+    dup_find = DupFinder(args.searchpaths)
 
     # ANALYZE FILES, DIRECTORIES
 
@@ -1243,8 +1307,7 @@ def main(argv=None):
     #   filepaths that are all that size (lists are all len > 1)
     # filemodtimes is dict: keys are filepaths, items are modtimes when file
     #   was stat'ed
-    (file_size_hash, filetree, filemodtimes, fileblocks, unproc_files
-            ) = hash_files_by_size(searchpaths, master_root)
+    dup_find.hash_files_by_size2()
 
     # DEBUG find frequencies of group sizes (collect statistics)
     #freq_dict = get_frequencies(file_size_hash)
@@ -1254,20 +1317,13 @@ def main(argv=None):
     # dupgroups: list of lists of identical files
     # uniquefiles: list unique files
     # unproc_files: list problematic (mostly unreadable) files
-    (dup_groups, unique_files) = compare_files(
-            file_size_hash, fileblocks, unproc_files)
+    dup_find.compare_files2()
 
     # compare_files takes the longest time, so now check and see which files
     #   have changed in the meantime and mark them as changed
     # also mark in filetree as unprocessed, getting a -1 for their item in
     #   filetree hierarchical dict
-    check_files_for_chages(
-            filemodtimes,
-            unproc_files,
-            dup_groups,
-            unique_files,
-            filetree,
-            master_root)
+    dup_find.check_files_for_changes2()
 
     # now we know all of the files that are duplicates and unique
     # we will also determine below which directories are identical in that
@@ -1275,34 +1331,32 @@ def main(argv=None):
 
     # for each unique file, make a unique id, identical-data files share id
     #   save unique id to items of files in filetree hierarchical dict
-    create_file_ids(dup_groups, unique_files, filetree, master_root)
+    dup_find.create_file_ids2()
 
     # inventory directories based on identical/non-identical contents
     #   (ignoring names)
     # unknown_dirs are any dir that we couldn't check any of the files due to
     #   file issues, etc.
     # fileblocks gives info on file sizes, used to compute directory total size
-    (unique_dirs, unknown_dirs) = recurse_analyze_filetree(
-            filetree, master_root, fileblocks, dup_groups)
+    dup_find.recurse_analyze_filetree2()
 
     # PRINT REPORT
 
     # header for report
-    print_header(master_root)
+    dup_find.print_header2()
 
     # print a sorted (biggest dir/files first) list of dup groups,
     #   alphabetical within each group
-    print_sorted_dups(dup_groups, master_root)
+    dup_find.print_sorted_dups2()
 
     # print a sorted (alphabetical) list of unique files and dirs
-    unique_files.extend(unique_dirs)
-    print_sorted_uniques(unique_files, master_root)
+    dup_find.print_sorted_uniques2()
 
     # print lists of unprocessed files
-    print_unproc_files(unproc_files, master_root)
+    dup_find.print_unproc_files2()
 
     # print unknown status directories
-    print_unknown_dirs(unknown_dirs, master_root)
+    dup_find.print_unknown_dirs2()
 
     print("")
     mytimer.eltime_pr("Total Elapsed time: ", file=sys.stderr)
