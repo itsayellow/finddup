@@ -767,6 +767,43 @@ class DupFinder():
                 subtree = subtree.setdefault(pathpart, {})
         return subtree
 
+    def analyze(self):
+        # file_size_hash is dict: keys are file sizes in bytes, items are lists of
+        #   filepaths that are all that size (lists are all len > 1)
+        # filemodtimes is dict: keys are filepaths, items are modtimes when file
+        #   was stat'ed
+        self.hash_files_by_size()
+
+        # DEBUG find frequencies of group sizes (collect statistics)
+        #freq_dict = get_frequencies(file_size_hash)
+
+        # compare all filegroups by using byte-by-byte comparison to find actually
+        #   unique, duplicate
+        # dupgroups: list of lists of identical files
+        # uniquefiles: list unique files
+        # unproc_files: list problematic (mostly unreadable) files
+        self.compare_files()
+
+        # compare_files takes the longest time, so now check and see which files
+        #   have changed in the meantime and mark them as changed
+        # also mark in filetree as unprocessed, getting a -1 for their item in
+        #   filetree hierarchical dict
+        self.check_files_for_changes()
+
+        # now we know all of the files that are duplicates and unique
+        # we will also determine below which directories are identical in that
+        #   they contain identical files and subdirs
+
+        # for each unique file, make a unique id, identical-data files share id
+        #   save unique id to items of files in filetree hierarchical dict
+        self.create_file_ids()
+
+        # inventory directories based on identical/non-identical contents
+        #   (ignoring names)
+        # unknown_dirs are any dir that we couldn't check any of the files due to
+        #   file issues, etc.
+        # fileblocks gives info on file sizes, used to compute directory total size
+        self.recurse_analyze_filetree()
 
     def hash_files_by_size(self):
         """Hierarchically search through paths and has by file size in bytes
@@ -1083,6 +1120,23 @@ class DupFinder():
                 filedir_str += os.path.sep
         return filedir_str
 
+    def print_full_report(self):
+        # header for report
+        self.print_header()
+
+        # print a sorted (biggest dir/files first) list of dup groups,
+        #   alphabetical within each group
+        self.print_sorted_dups()
+
+        # print a sorted (alphabetical) list of unique files and dirs
+        self.print_sorted_uniques()
+
+        # print lists of unprocessed files
+        self.print_unproc_files()
+
+        # print unknown status directories
+        self.print_unknown_dirs()
+
     def print_header(self):
         """Print header information to start report on files and directories.
 
@@ -1237,64 +1291,14 @@ def main(argv=None):
     mytimer.start()
     args = process_command_line(argv)
 
+    # initialize DupFinder object with searchpaths
     dup_find = DupFinder(args.searchpaths)
 
     # ANALYZE FILES, DIRECTORIES
-
-    # file_size_hash is dict: keys are file sizes in bytes, items are lists of
-    #   filepaths that are all that size (lists are all len > 1)
-    # filemodtimes is dict: keys are filepaths, items are modtimes when file
-    #   was stat'ed
-    dup_find.hash_files_by_size()
-
-    # DEBUG find frequencies of group sizes (collect statistics)
-    #freq_dict = get_frequencies(file_size_hash)
-
-    # compare all filegroups by using byte-by-byte comparison to find actually
-    #   unique, duplicate
-    # dupgroups: list of lists of identical files
-    # uniquefiles: list unique files
-    # unproc_files: list problematic (mostly unreadable) files
-    dup_find.compare_files()
-
-    # compare_files takes the longest time, so now check and see which files
-    #   have changed in the meantime and mark them as changed
-    # also mark in filetree as unprocessed, getting a -1 for their item in
-    #   filetree hierarchical dict
-    dup_find.check_files_for_changes()
-
-    # now we know all of the files that are duplicates and unique
-    # we will also determine below which directories are identical in that
-    #   they contain identical files and subdirs
-
-    # for each unique file, make a unique id, identical-data files share id
-    #   save unique id to items of files in filetree hierarchical dict
-    dup_find.create_file_ids()
-
-    # inventory directories based on identical/non-identical contents
-    #   (ignoring names)
-    # unknown_dirs are any dir that we couldn't check any of the files due to
-    #   file issues, etc.
-    # fileblocks gives info on file sizes, used to compute directory total size
-    dup_find.recurse_analyze_filetree()
+    dup_find.analyze()
 
     # PRINT REPORT
-
-    # header for report
-    dup_find.print_header()
-
-    # print a sorted (biggest dir/files first) list of dup groups,
-    #   alphabetical within each group
-    dup_find.print_sorted_dups()
-
-    # print a sorted (alphabetical) list of unique files and dirs
-    dup_find.print_sorted_uniques()
-
-    # print lists of unprocessed files
-    dup_find.print_unproc_files()
-
-    # print unknown status directories
-    dup_find.print_unknown_dirs()
+    dup_find.print_full_report()
 
     print("")
     mytimer.eltime_pr("Total Elapsed time: ", file=sys.stderr)
