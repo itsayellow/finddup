@@ -613,40 +613,6 @@ def compare_file_group(filelist, fileblocks):
     return (unique_files, dup_groups, unproc_files)
 
 
-def check_files_for_changes(filemodtimes, unproc_files, dup_groups, unique_files,
-        filetree, master_root):
-    """Look for files that have been modified during execution of this prog.
-
-    Any change in a file since the beginning of this program's execution
-    invalidates the uniqueness/duplicateness analysis of that file.
-    It is removed from dup_groups or unique_files and placed in
-    unproc_files with the tag "changed".
-
-    Args:
-        filemodtimes:
-        unproc_files: READ/WRITE
-        dup_groups: READ/WRITE
-        unique_files: READ/WRITE
-        filetree: READ/WRITE
-        master_root:
-    """
-    for filepath in filemodtimes:
-        (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                filepath)
-        if this_mod != filemodtimes[filepath]:
-            # file has changed since start of this program
-            (this_dir, this_file) = os.path.split(filepath)
-            subtree_dict(filetree, this_dir, master_root)[this_file] = -1
-            unproc_files.append([filepath, "changed"])
-
-            # remove filepath from dups and unique if found
-            if filepath in unique_files:
-                unique_files.remove(filepath)
-            for dup_group in dup_groups:
-                if filepath in dup_group[1]:
-                    dup_group[1].remove(filepath)
-
-
 def create_file_ids(dup_groups, unique_files, filetree, master_root):
     """Create ID numbers for every file based on file data uniqueness
 
@@ -1231,15 +1197,39 @@ class DupFinder():
         self.dup_groups = dup_groups
         self.unique_files = unique_files
 
-    def check_files_for_changes2(self):
-        check_files_for_changes(
-                self.filemodtimes,
-                self.unproc_files,
-                self.dup_groups,
-                self.unique_files,
-                self.filetree,
-                self.master_root
-                )
+    def check_files_for_changes(self):
+        """Look for files that have been modified during execution of this prog.
+
+        Any change in a file since the beginning of this program's execution
+        invalidates the uniqueness/duplicateness analysis of that file.
+        It is removed from dup_groups or unique_files and placed in
+        unproc_files with the tag "changed".
+
+        Args:
+            filemodtimes:
+            unproc_files: READ/WRITE
+            dup_groups: READ/WRITE
+            unique_files: READ/WRITE
+            filetree: READ/WRITE
+            master_root:
+        """
+        for filepath in self.filemodtimes:
+            (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
+                    filepath)
+            if this_mod != self.filemodtimes[filepath]:
+                # file has changed since start of this program
+                (this_dir, this_file) = os.path.split(filepath)
+                subtree_dict(self.filetree, this_dir, self.master_root)[this_file] = -1
+                self.unproc_files.append([filepath, "changed"])
+
+                # remove filepath from dups and unique if found
+                if filepath in self.unique_files:
+                    self.unique_files.remove(filepath)
+                for dup_group in self.dup_groups:
+                    if filepath in dup_group[1]:
+                        dup_group[1].remove(filepath)
+
+
     def create_file_ids2(self):
         create_file_ids(
                 self.dup_groups,
@@ -1318,7 +1308,7 @@ def main(argv=None):
     #   have changed in the meantime and mark them as changed
     # also mark in filetree as unprocessed, getting a -1 for their item in
     #   filetree hierarchical dict
-    dup_find.check_files_for_changes2()
+    dup_find.check_files_for_changes()
 
     # now we know all of the files that are duplicates and unique
     # we will also determine below which directories are identical in that
