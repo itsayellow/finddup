@@ -671,30 +671,6 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
     return hier_id_str
 
 
-def filedir_rel_master_root(filedir, master_root):
-    """ Returns the path of filedir relative to master_root.
-
-    If master_root is / (filesystem root dir) then return full absolute path.
-
-    Args:
-        filedir: path to be translated to relpath of master_root
-        master_root: string of root of all searched paths
-
-    Returns:
-        filedir_str: filedir path relative to master_root, or absolute if
-            master_root == "/"
-    """
-    if master_root == "/":
-        # all paths are abspaths
-        filedir_str = filedir
-    else:
-        # relpath from master_root
-        filedir_str = os.path.relpath(filedir, start=master_root)
-        if filedir.endswith(os.path.sep):
-            filedir_str += os.path.sep
-    return filedir_str
-
-
 def get_frequencies(file_size_hash):
     """Collect data on equi-size file groups.
 
@@ -1097,6 +1073,29 @@ class DupFinder():
         self.unique_dirs = unique_dirs
         self.unknown_dirs = unknown_dirs
 
+    def _filedir_rel_master_root(self, filedir):
+        """ Returns the path of filedir relative to master_root.
+
+        If master_root is / (filesystem root dir) then return full absolute path.
+
+        Args:
+            filedir: path to be translated to relpath of master_root
+            master_root: string of root of all searched paths
+
+        Returns:
+            filedir_str: filedir path relative to master_root, or absolute if
+                master_root == "/"
+        """
+        if self.master_root == "/":
+            # all paths are abspaths
+            filedir_str = filedir
+        else:
+            # relpath from self.master_root
+            filedir_str = os.path.relpath(filedir, start=self.master_root)
+            if filedir.endswith(os.path.sep):
+                filedir_str += os.path.sep
+        return filedir_str
+
     def print_header(self):
         """Print header information to start report on files and directories.
 
@@ -1125,7 +1124,7 @@ class DupFinder():
         for dup_group in sorted(self.dup_groups, reverse=True, key=lambda x: x[0]):
             print("Duplicate set (%sB each)"%(num2eng(512*dup_group[0])))
             for filedir in sorted(dup_group[1]):
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  %s"%filedir_str)
 
     def print_sorted_uniques(self):
@@ -1143,7 +1142,7 @@ class DupFinder():
         print("\n\nUnique Files/Directories:")
         print("----------------")
         for filedir in sorted(unique_filedirs):
-            filedir_str = filedir_rel_master_root(filedir, self.master_root)
+            filedir_str = self._filedir_rel_master_root(filedir)
             print(filedir_str)
 
     def print_unproc_files(self):
@@ -1172,7 +1171,7 @@ class DupFinder():
             print("\n\nUnreadable Files (ignored)")
             print("----------------")
             for err_file in sorted(other):
-                filedir_str = filedir_rel_master_root(err_file[0], self.master_root)
+                filedir_str = self._filedir_rel_master_root(err_file[0])
                 print("  "+filedir_str)
                 for msg in err_file[1:]:
                     err_str = textwrap.fill(
@@ -1182,31 +1181,31 @@ class DupFinder():
             print("\n\nSockets (ignored)")
             print("----------------")
             for filedir in sorted(sockets):
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  "+filedir_str)
         if fifos:
             print("\n\nFIFOs (ignored)")
             print("----------------")
             for filedir in sorted(fifos):
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  "+filedir_str)
         if symlinks:
             print("\n\nSymbolic Links (ignored)")
             print("----------------")
             for filedir in sorted(symlinks):
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  "+filedir_str)
         if changes:
             print("\n\nChanged Files (since start of this program's execution)")
             print("----------------")
             for filedir in changes:
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  "+filedir_str)
         if ignored:
             print("\n\nIgnored Files")
             print("----------------")
             for filedir in sorted(ignored):
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  "+filedir_str)
 
     def print_unknown_dirs(self):
@@ -1222,7 +1221,7 @@ class DupFinder():
             print("\n\nUnknown Dirs")
             print("----------------")
             for filedir in sorted(self.unknown_dirs):
-                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                filedir_str = self._filedir_rel_master_root(filedir)
                 print("  "+filedir_str)
 
 
