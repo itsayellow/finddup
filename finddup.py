@@ -732,8 +732,7 @@ class DupFinder():
             if remove_searchpath.get(searchpath, False):
                 del new_searchpaths[i]
 
-        master_root = os.path.commonpath(new_searchpaths)
-        self.master_root = master_root
+        self.master_root = os.path.commonpath(new_searchpaths)
         self.searchpaths = new_searchpaths
 
     def _subtree_dict(self, root):
