@@ -712,23 +712,6 @@ def print_sorted_uniques(unique_files, master_root):
         print(filedir_str)
 
 
-def print_unknown_dirs(unknown_dirs, master_root):
-    """Print report of all files unable to be processed.
-
-    Any directories that contain unreadable files listed alphabetically.
-
-    Args:
-        unknown_dirs: list of directory paths for dirs that have
-            unreadable files
-    """
-    if unknown_dirs:
-        print("\n\nUnknown Dirs")
-        print("----------------")
-        for filedir in sorted(unknown_dirs):
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  "+filedir_str)
-
-
 def get_frequencies(file_size_hash):
     """Collect data on equi-size file groups.
 
@@ -1230,8 +1213,22 @@ class DupFinder():
                 filedir_str = filedir_rel_master_root(filedir, self.master_root)
                 print("  "+filedir_str)
 
-    def print_unknown_dirs2(self):
-        print_unknown_dirs(self.unknown_dirs, self.master_root)
+    def print_unknown_dirs(self):
+        """Print report of all files unable to be processed.
+
+        Any directories that contain unreadable files listed alphabetically.
+
+        Args:
+            unknown_dirs: list of directory paths for dirs that have
+                unreadable files
+        """
+        if self.unknown_dirs:
+            print("\n\nUnknown Dirs")
+            print("----------------")
+            for filedir in sorted(self.unknown_dirs):
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  "+filedir_str)
+
 
 #   1. For every file, get: size, mod_time
 #   2. hash by sizes, each hash size in dict fill with list of all files
@@ -1315,7 +1312,7 @@ def main(argv=None):
     dup_find.print_unproc_files()
 
     # print unknown status directories
-    dup_find.print_unknown_dirs2()
+    dup_find.print_unknown_dirs()
 
     print("")
     mytimer.eltime_pr("Total Elapsed time: ", file=sys.stderr)
