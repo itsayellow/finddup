@@ -44,15 +44,6 @@ MEM_TO_USE = 1024*1024*1024   # 1GB
 # how many files we can have open at the same time
 MAX_FILES_OPEN = 200
 
-# TODO more generalized way of specifying this
-IGNORE_FILES = {
-        ".picasa.ini":True,
-        ".DS_Store":True,
-        "Thumbs.db":True,
-        " Icon\r":True,
-        "Icon\r":True
-        }
-
 
 class StderrPrinter(object):
     """Prints to stderr especially for use with \r and same-line updates
@@ -157,7 +148,7 @@ def num2eng(num, k=1024):
     return numstr
 
 
-def check_stat_file(filepath):
+def check_stat_file(filepath, ignore_files):
     """Get file's stat from os, and handle files we ignore.
 
     Get filestat on file if possible (i.e. readable), discard if symlink,
@@ -207,7 +198,7 @@ def check_stat_file(filepath):
         # Windows has no st_blocks attribute
         this_blocks = this_size//512 + (1 if this_size%512 != 0 else 0)
 
-    if IGNORE_FILES.get(os.path.basename(filepath), False):
+    if ignore_files.get(os.path.basename(filepath), False):
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
@@ -688,6 +679,14 @@ class DupFinder():
         self.unique_files = None
         self.unique_dirs = None
         self.unknown_dirs = None
+        # TODO more generalized way of specifying this
+        self.ignore_files = {
+                ".picasa.ini":True,
+                ".DS_Store":True,
+                "Thumbs.db":True,
+                " Icon\r":True,
+                "Icon\r":True
+                }
 
         # eliminate duplicates, and paths that are sub-paths of other
         #   searchpaths
@@ -853,7 +852,7 @@ class DupFinder():
 
             filepath = os.path.join(root, filename)
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                    filepath)
+                    filepath, self.ignore_files)
             # if valid blocks then record for dir block tally
             if this_blocks != -1:
                 self.fileblocks[filepath] = this_blocks
@@ -978,7 +977,7 @@ class DupFinder():
         """
         for filepath in self.filemodtimes:
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                    filepath)
+                    filepath, self.ignore_files)
             if this_mod != self.filemodtimes[filepath]:
                 # file has changed since start of this program
                 (this_dir, this_file) = os.path.split(filepath)
