@@ -613,56 +613,6 @@ def compare_file_group(filelist, fileblocks):
     return (unique_files, dup_groups, unproc_files)
 
 
-def compare_files(file_size_hash, fileblocks, unproc_files):
-    """Determine duplicate, unique files from file data
-
-    Each group of file_size_hash is a set of possible duplicate files (each
-    group has files of all the same size in bytes.)  Read file data for
-    each file in a group to determine which are ACTUALLY duplicate or
-    unique files from the file data.
-
-    Args:
-        file_size_hash: key: size in bytes, item: list of files that size
-        fileblocks: dict with key: filepath, item: file size in blocks
-        unproc_files: READ/WRITE list of files that cannot be read, this
-            list is added to by this function
-
-    Returns:
-        dup_groups: list of lists.  Each list contains:
-            [size in blocks of duplicate files, list of duplicate files]
-        unique_files: list of filepaths that are unique
-    """
-    unique_files = []
-    dup_groups = []
-
-    compare_files_timer = tictoc.Timer()
-    compare_files_timer.start()
-    myerr.print("Comparing file data...")
-
-    old_time = 0
-    for (i, key) in enumerate(file_size_hash.keys()):
-        (this_unique_files, this_dup_groups, this_unproc_files
-                ) = compare_file_group(file_size_hash[key], fileblocks)
-        unique_files.extend(this_unique_files)
-        dup_groups.extend(this_dup_groups)
-        unproc_files.extend(this_unproc_files)
-        if compare_files_timer.eltime() > old_time+0.4:
-            old_time = compare_files_timer.eltime()
-            #compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
-            compare_files_timer.progress_pr(
-                    frac_done=(i+1)/len(file_size_hash),
-                    file=sys.stderr
-                    )
-    # print one last time to get the 100% done tally
-    compare_files_timer.progress_pr(
-            frac_done=(i+1)/len(file_size_hash),
-            file=sys.stderr
-            )
-
-    myerr.print("\nFinished comparing file data")
-    return (dup_groups, unique_files)
-
-
 def check_files_for_changes(filemodtimes, unproc_files, dup_groups, unique_files,
         filetree, master_root):
     """Look for files that have been modified during execution of this prog.
@@ -1230,9 +1180,56 @@ class DupFinder():
         self.fileblocks = fileblocks
         self.unproc_files = unproc_files
 
-    def compare_files2(self):
-        (self.dup_groups, self.unique_files) = compare_files(
-                self.file_size_hash, self.fileblocks, self.unproc_files)
+    def compare_files(self):
+        """Determine duplicate, unique files from file data
+
+        Each group of file_size_hash is a set of possible duplicate files (each
+        group has files of all the same size in bytes.)  Read file data for
+        each file in a group to determine which are ACTUALLY duplicate or
+        unique files from the file data.
+
+        Args:
+            file_size_hash: key: size in bytes, item: list of files that size
+            fileblocks: dict with key: filepath, item: file size in blocks
+            unproc_files: READ/WRITE list of files that cannot be read, this
+                list is added to by this function
+
+        Returns:
+            dup_groups: list of lists.  Each list contains:
+                [size in blocks of duplicate files, list of duplicate files]
+            unique_files: list of filepaths that are unique
+        """
+        unique_files = []
+        dup_groups = []
+
+        compare_files_timer = tictoc.Timer()
+        compare_files_timer.start()
+        myerr.print("Comparing file data...")
+
+        old_time = 0
+        for (i, key) in enumerate(self.file_size_hash.keys()):
+            (this_unique_files, this_dup_groups, this_unproc_files
+                    ) = compare_file_group(self.file_size_hash[key], self.fileblocks)
+            unique_files.extend(this_unique_files)
+            dup_groups.extend(this_dup_groups)
+            self.unproc_files.extend(this_unproc_files)
+            if compare_files_timer.eltime() > old_time+0.4:
+                old_time = compare_files_timer.eltime()
+                #compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
+                compare_files_timer.progress_pr(
+                        frac_done=(i+1)/len(self.file_size_hash),
+                        file=sys.stderr
+                        )
+        # print one last time to get the 100% done tally
+        compare_files_timer.progress_pr(
+                frac_done=(i+1)/len(self.file_size_hash),
+                file=sys.stderr
+                )
+
+        myerr.print("\nFinished comparing file data")
+
+        self.dup_groups = dup_groups
+        self.unique_files = unique_files
 
     def check_files_for_changes2(self):
         check_files_for_changes(
@@ -1315,7 +1312,7 @@ def main(argv=None):
     # dupgroups: list of lists of identical files
     # uniquefiles: list unique files
     # unproc_files: list problematic (mostly unreadable) files
-    dup_find.compare_files2()
+    dup_find.compare_files()
 
     # compare_files takes the longest time, so now check and see which files
     #   have changed in the meantime and mark them as changed
