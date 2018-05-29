@@ -712,70 +712,6 @@ def print_sorted_uniques(unique_files, master_root):
         print(filedir_str)
 
 
-def print_unproc_files(unproc_files, master_root):
-    """Print report of all files unable to be processed.
-
-    Any files that are unreadable are listed alphabetically.
-
-    Args:
-        unproc_files: list of unprocessed file paths
-    """
-    symlinks = [x[0] for x in unproc_files if x[1] == "symlink"]
-    ignored = [x[0] for x in unproc_files if x[1] == "ignore_files"]
-    sockets = [x[0] for x in unproc_files if x[1] == "socket"]
-    fifos = [x[0] for x in unproc_files if x[1] == "fifo"]
-    changes = [x[0] for x in unproc_files if x[1] == "changed"]
-
-    # other is anything not in one of the above lists
-    other = [x for x in unproc_files if x[0] not in symlinks]
-    other = [x for x in other if x[0] not in ignored]
-    other = [x for x in other if x[0] not in sockets]
-    other = [x for x in other if x[0] not in fifos]
-    other = [x for x in other if x[0] not in changes]
-
-    print("\n\nUnprocessed Files")
-    if other:
-        print("\n\nUnreadable Files (ignored)")
-        print("----------------")
-        for err_file in sorted(other):
-            filedir_str = filedir_rel_master_root(err_file[0], master_root)
-            print("  "+filedir_str)
-            for msg in err_file[1:]:
-                err_str = textwrap.fill(
-                        msg, initial_indent=' '*2, subsequent_indent=' '*6)
-                print(err_str)
-    if sockets:
-        print("\n\nSockets (ignored)")
-        print("----------------")
-        for filedir in sorted(sockets):
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  "+filedir_str)
-    if fifos:
-        print("\n\nFIFOs (ignored)")
-        print("----------------")
-        for filedir in sorted(fifos):
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  "+filedir_str)
-    if symlinks:
-        print("\n\nSymbolic Links (ignored)")
-        print("----------------")
-        for filedir in sorted(symlinks):
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  "+filedir_str)
-    if changes:
-        print("\n\nChanged Files (since start of this program's execution)")
-        print("----------------")
-        for filedir in changes:
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  "+filedir_str)
-    if ignored:
-        print("\n\nIgnored Files")
-        print("----------------")
-        for filedir in sorted(ignored):
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  "+filedir_str)
-
-
 def print_unknown_dirs(unknown_dirs, master_root):
     """Print report of all files unable to be processed.
 
@@ -1231,9 +1167,69 @@ class DupFinder():
         unique_files.extend(self.unique_dirs)
         print_sorted_uniques(unique_files, self.master_root)
 
-    def print_unproc_files2(self):
-        print_unproc_files(self.unproc_files, self.master_root)
-    
+    def print_unproc_files(self):
+        """Print report of all files unable to be processed.
+
+        Any files that are unreadable are listed alphabetically.
+
+        Args:
+            unproc_files: list of unprocessed file paths
+        """
+        symlinks = [x[0] for x in self.unproc_files if x[1] == "symlink"]
+        ignored = [x[0] for x in self.unproc_files if x[1] == "ignore_files"]
+        sockets = [x[0] for x in self.unproc_files if x[1] == "socket"]
+        fifos = [x[0] for x in self.unproc_files if x[1] == "fifo"]
+        changes = [x[0] for x in self.unproc_files if x[1] == "changed"]
+
+        # other is anything not in one of the above lists
+        other = [x for x in self.unproc_files if x[0] not in symlinks]
+        other = [x for x in other if x[0] not in ignored]
+        other = [x for x in other if x[0] not in sockets]
+        other = [x for x in other if x[0] not in fifos]
+        other = [x for x in other if x[0] not in changes]
+
+        print("\n\nUnprocessed Files")
+        if other:
+            print("\n\nUnreadable Files (ignored)")
+            print("----------------")
+            for err_file in sorted(other):
+                filedir_str = filedir_rel_master_root(err_file[0], self.master_root)
+                print("  "+filedir_str)
+                for msg in err_file[1:]:
+                    err_str = textwrap.fill(
+                            msg, initial_indent=' '*2, subsequent_indent=' '*6)
+                    print(err_str)
+        if sockets:
+            print("\n\nSockets (ignored)")
+            print("----------------")
+            for filedir in sorted(sockets):
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  "+filedir_str)
+        if fifos:
+            print("\n\nFIFOs (ignored)")
+            print("----------------")
+            for filedir in sorted(fifos):
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  "+filedir_str)
+        if symlinks:
+            print("\n\nSymbolic Links (ignored)")
+            print("----------------")
+            for filedir in sorted(symlinks):
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  "+filedir_str)
+        if changes:
+            print("\n\nChanged Files (since start of this program's execution)")
+            print("----------------")
+            for filedir in changes:
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  "+filedir_str)
+        if ignored:
+            print("\n\nIgnored Files")
+            print("----------------")
+            for filedir in sorted(ignored):
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  "+filedir_str)
+
     def print_unknown_dirs2(self):
         print_unknown_dirs(self.unknown_dirs, self.master_root)
 
@@ -1316,7 +1312,7 @@ def main(argv=None):
     dup_find.print_sorted_uniques2()
 
     # print lists of unprocessed files
-    dup_find.print_unproc_files2()
+    dup_find.print_unproc_files()
 
     # print unknown status directories
     dup_find.print_unknown_dirs2()
