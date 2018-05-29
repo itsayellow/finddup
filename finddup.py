@@ -613,47 +613,6 @@ def compare_file_group(filelist, fileblocks):
     return (unique_files, dup_groups, unproc_files)
 
 
-def create_file_ids(dup_groups, unique_files, filetree, master_root):
-    """Create ID numbers for every file based on file data uniqueness
-
-    This function adds file id numbers to each file in the filetree
-    structure.  Files with unique data have unique file IDs.
-    File IDs for two files are the same if the files' data are the same.
-
-    Args:
-        dup_groups: list of lists of filepaths that have duplicate data.
-            Each list contains:
-            [size in blocks of duplicate files, list of duplicate files]
-        unique_files: list of paths of files that have unique data
-        filetree: READ/WRITE dict of dicts and items representing
-            hierarchy of all files searched starting at master_root,
-            keys are file or dir name at that level, items are dict
-            (if dir) or integer file id (if file).  File id is unique
-            if file is unique (based on data).  Files with identical
-            data inside have same file id
-        master_root: string that is lowest common root dir for all
-            searched files, dirs
-    """
-    file_id = {}
-    idnum = 0
-    for unq_file in unique_files:
-        file_id[unq_file] = idnum
-
-        # add id to tree
-        (unq_dir, unq_file) = os.path.split(unq_file)
-        subtree_dict(filetree, unq_dir, master_root)[unq_file] = idnum
-
-        idnum += 1
-    for dup_group in dup_groups:
-        for dup_file in dup_group[1]:
-            file_id[dup_file] = idnum
-
-            # add id to tree
-            (dup_dir, dup_file) = os.path.split(dup_file)
-            subtree_dict(filetree, dup_dir, master_root)[dup_file] = idnum
-        idnum += 1
-
-
 def recurse_subtree(name, subtree, dir_dict, fileblocks):
     """Recurse subtree of filetree, at each dir saving dir data id, size.
 
@@ -1229,14 +1188,45 @@ class DupFinder():
                     if filepath in dup_group[1]:
                         dup_group[1].remove(filepath)
 
+    def create_file_ids(self):
+        """Create ID numbers for every file based on file data uniqueness
 
-    def create_file_ids2(self):
-        create_file_ids(
-                self.dup_groups,
-                self.unique_files,
-                self.filetree,
-                self.master_root
-                )
+        This function adds file id numbers to each file in the filetree
+        structure.  Files with unique data have unique file IDs.
+        File IDs for two files are the same if the files' data are the same.
+
+        Args:
+            dup_groups: list of lists of filepaths that have duplicate data.
+                Each list contains:
+                [size in blocks of duplicate files, list of duplicate files]
+            unique_files: list of paths of files that have unique data
+            filetree: READ/WRITE dict of dicts and items representing
+                hierarchy of all files searched starting at master_root,
+                keys are file or dir name at that level, items are dict
+                (if dir) or integer file id (if file).  File id is unique
+                if file is unique (based on data).  Files with identical
+                data inside have same file id
+            master_root: string that is lowest common root dir for all
+                searched files, dirs
+        """
+        file_id = {}
+        idnum = 0
+        for unq_file in self.unique_files:
+            file_id[unq_file] = idnum
+
+            # add id to tree
+            (unq_dir, unq_file) = os.path.split(unq_file)
+            subtree_dict(self.filetree, unq_dir, self.master_root)[unq_file] = idnum
+
+            idnum += 1
+        for dup_group in self.dup_groups:
+            for dup_file in dup_group[1]:
+                file_id[dup_file] = idnum
+
+                # add id to tree
+                (dup_dir, dup_file) = os.path.split(dup_file)
+                subtree_dict(self.filetree, dup_dir, self.master_root)[dup_file] = idnum
+            idnum += 1
 
     def recurse_analyze_filetree2(self):
         (self.unique_dirs, self.unknown_dirs) = recurse_analyze_filetree(
@@ -1316,7 +1306,7 @@ def main(argv=None):
 
     # for each unique file, make a unique id, identical-data files share id
     #   save unique id to items of files in filetree hierarchical dict
-    dup_find.create_file_ids2()
+    dup_find.create_file_ids()
 
     # inventory directories based on identical/non-identical contents
     #   (ignoring names)
