@@ -775,7 +775,7 @@ class DupFinder():
         self.hash_files_by_size()
 
         # DEBUG find frequencies of group sizes (collect statistics)
-        #freq_dict = get_frequencies(file_size_hash)
+        #freq_dict = get_frequencies(self.file_size_hash)
 
         # compare all filegroups by using byte-by-byte comparison to find actually
         #   unique, duplicate
