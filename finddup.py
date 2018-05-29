@@ -695,28 +695,6 @@ def filedir_rel_master_root(filedir, master_root):
     return filedir_str
 
 
-def print_sorted_dups(dup_groups, master_root):
-    """Print report of sorted duplicate files and directories.
-
-    Sort duplicate groups based on total size in blocks, biggest size first.
-
-    Args:
-        dup_groups: list of duplicate file/dir groups.  Format for each
-            sublist of this list:
-            [size in blocks of duplicate dirs, list of duplicate dir paths]
-        master_root: string that is lowest common parent dir path of all
-            searched files
-    """
-    print("")
-    print("Duplicate Files/Directories:")
-    print("----------------")
-    for dup_group in sorted(dup_groups, reverse=True, key=lambda x: x[0]):
-        print("Duplicate set (%sB each)"%(num2eng(512*dup_group[0])))
-        for filedir in sorted(dup_group[1]):
-            filedir_str = filedir_rel_master_root(filedir, master_root)
-            print("  %s"%filedir_str)
-
-
 def print_sorted_uniques(unique_files, master_root):
     """Print report of sorted list of unique files and directories
 
@@ -1227,8 +1205,26 @@ class DupFinder():
         if self.master_root != "/":
             print("All file paths referenced from:\n"+self.master_root)
     
-    def print_sorted_dups2(self):
-        print_sorted_dups(self.dup_groups, self.master_root)
+    def print_sorted_dups(self):
+        """Print report of sorted duplicate files and directories.
+
+        Sort duplicate groups based on total size in blocks, biggest size first.
+
+        Args:
+            dup_groups: list of duplicate file/dir groups.  Format for each
+                sublist of this list:
+                [size in blocks of duplicate dirs, list of duplicate dir paths]
+            master_root: string that is lowest common parent dir path of all
+                searched files
+        """
+        print("")
+        print("Duplicate Files/Directories:")
+        print("----------------")
+        for dup_group in sorted(self.dup_groups, reverse=True, key=lambda x: x[0]):
+            print("Duplicate set (%sB each)"%(num2eng(512*dup_group[0])))
+            for filedir in sorted(dup_group[1]):
+                filedir_str = filedir_rel_master_root(filedir, self.master_root)
+                print("  %s"%filedir_str)
 
     def print_sorted_uniques2(self):
         unique_files = self.unique_files
@@ -1314,7 +1310,7 @@ def main(argv=None):
 
     # print a sorted (biggest dir/files first) list of dup groups,
     #   alphabetical within each group
-    dup_find.print_sorted_dups2()
+    dup_find.print_sorted_dups()
 
     # print a sorted (alphabetical) list of unique files and dirs
     dup_find.print_sorted_uniques2()
