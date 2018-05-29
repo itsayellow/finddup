@@ -1028,7 +1028,7 @@ class DupFinder():
                 hierarchy, making these directories also "unknown"
         """
         dup_dirs = []
-        unique_dirs = []
+        self.unique_dirs = []
         dir_dict = {}
 
         # recurse_subtree creates a string representation of every subdir
@@ -1037,10 +1037,10 @@ class DupFinder():
         recurse_subtree(self.master_root, self.filetree, dir_dict, self.fileblocks)
 
         # unknown dirs show up with key of "-1", don't consider them for matching
-        unknown_dirs = dir_dict.get("-1", [])
+        self.unknown_dirs = dir_dict.get("-1", [])
         # add trailing slash to all dir names
-        unknown_dirs = [x + os.path.sep for x in unknown_dirs]
-        if unknown_dirs:
+        self.unknown_dirs = [x + os.path.sep for x in self.unknown_dirs]
+        if self.unknown_dirs:
             del dir_dict["-1"]
 
         # find set of unique dirs, sets of duplicate dirs
@@ -1054,14 +1054,11 @@ class DupFinder():
                         [this_blocks, [x+os.path.sep for x in dir_dict[dirkey]]])
             elif len(dir_dict[dirkey]) == 1:
                 # unique dirs
-                unique_dirs.append(first_dir + os.path.sep)
+                self.unique_dirs.append(first_dir + os.path.sep)
             else:
                 raise Exception("Internal error: recurse_analyze_filetree has"\
                         " zero-size dir group.")
         self.dup_groups.extend(dup_dirs)
-
-        self.unique_dirs = unique_dirs
-        self.unknown_dirs = unknown_dirs
 
     def _filedir_rel_master_root(self, filedir):
         """ Returns the path of filedir relative to master_root.
