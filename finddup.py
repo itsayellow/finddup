@@ -7,6 +7,10 @@
     Ignores: symbolic links, fifos, sockets, certain system info files
         like: .picasa.ini, .DS_Store, Thumbs.db, " Icon\r"
 """
+# TODO: handle if searchpath is: a file, or nonexistent
+# TODO: handle if no files in searchpaths
+# TODO: handle if only one file
+#   touch hi; finddup hi
 
 # TODO: We need to have two classes of problem files: 1.) ignored, don't
 #   matter for dir compare and 2.) read error, cause dir compare to be
