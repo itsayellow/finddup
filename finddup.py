@@ -389,10 +389,18 @@ def read_filelist(filelist_group, filepos, amt_file_read):
 
     # remove invalid files from filelist_group, filedata_list,
     #   filedata_size_list
-    invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1]
-    filelist_group_new = [x for (i, x) in enumerate(filelist_group) if i not in invalid_idxs]
-    filedata_list = [x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs]
-    filedata_size_list = [x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs]
+    invalid_idxs = [
+            i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1
+            ]
+    filelist_group_new = [
+            x for (i, x) in enumerate(filelist_group) if i not in invalid_idxs
+            ]
+    filedata_list = [
+            x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs
+            ]
+    filedata_size_list = [
+            x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs
+            ]
 
     if filedata_size_list:
         file_bytes_read = filedata_size_list[0]
@@ -807,7 +815,7 @@ class DupFinder():
         # unknown_dirs are any dir that we couldn't check any of the files due to
         #   file issues, etc.
         # fileblocks gives info on file sizes, used to compute directory total size
-        self.recurse_analyze_filetree()
+        self.analyze_dirs()
 
     def hash_files_by_size(self):
         """Hierarchically search through paths and has by file size in bytes
@@ -1036,7 +1044,7 @@ class DupFinder():
                 self._subtree_dict(dup_dir)[dup_file] = idnum
             idnum += 1
 
-    def recurse_analyze_filetree(self):
+    def analyze_dirs(self):
         """Create dir ids for each dir represented in filetree and find dups, etc.
 
         Inventory directories based on identical/non-identical data in files
@@ -1097,7 +1105,7 @@ class DupFinder():
                 # unique dirs
                 self.unique_dirs.append(first_dir + os.path.sep)
             else:
-                raise Exception("Internal error: recurse_analyze_filetree has"\
+                raise Exception("Internal error: analyze_dirs has"\
                         " zero-size dir group.")
         self.dup_groups.extend(dup_dirs)
 
