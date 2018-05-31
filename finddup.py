@@ -763,10 +763,12 @@ class DupFinder:
         dict hierarchical structure if needed to get to root.
 
         Args:
-            filetree: dict of dicts and items, representing full file tree of
-                all searched paths
             root: filepath of desired dict subtree (absolute path preferred).
-            master_root: string that is highest common root dir for all
+
+        Uses:
+            self.filetree: dict of dicts and items, representing full file tree
+                of all searched paths
+            self.master_root: string that is highest common root dir for all
                 searched files, dirs.  Corresponds to root of dict filetree
 
         Returns:
@@ -836,19 +838,19 @@ class DupFinder:
         Record the modification time for every file (allowing us to check
         later if they changed during processing of this program.)
 
-        Args:
-            paths: search paths (each can be dir or file)
-            master_root: string that is lowest common root dir for all
+        Uses:
+            self.searchpaths: search paths (each can be dir or file)
+            self.master_root: string that is lowest common root dir for all
                 searched files, dirs
 
-        Returns:
-            file_size_hash: key-size in bytes, item-list of files with that
+        Affects:
+            self.file_size_hash: key-size in bytes, item-list of files with that
                 size
-            filetree: dict of items and dicts corresponding to directory
+            self.filetree: dict of items and dicts corresponding to directory
                 hierarchy of paths searched.  root of tree is master_root path
-            filemodtimes: key-filepath, item-file modif. datetime
-            fileblocks: key-filepath, item-size in blocks
-            unproc_files: list of files ignored or unable to be read
+            self.filemodtimes: key-filepath, item-file modif. datetime
+            self.fileblocks: key-filepath, item-size in blocks
+            self.unproc_files: list of files ignored or unable to be read
         """
 
         self.unproc_files = []
