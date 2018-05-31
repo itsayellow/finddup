@@ -716,7 +716,7 @@ class DupFinder:
         Args:
             searchpaths: strings of search paths, relative or absolute
 
-        Affects:
+        Creates:
             self.master_root: string that is lowest common root dir for all
                 searched files, dirs
             self.searchpaths: absolute paths, duplicates removed
@@ -843,7 +843,7 @@ class DupFinder:
             self.master_root: string that is lowest common root dir for all
                 searched files, dirs
 
-        Affects:
+        Creates:
             self.file_size_hash: key-size in bytes, item-list of files with that
                 size
             self.filetree: dict of items and dicts corresponding to directory
