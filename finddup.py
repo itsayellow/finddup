@@ -937,10 +937,12 @@ class DupFinder:
         each file in a group to determine which are ACTUALLY duplicate or
         unique files from the file data.
 
-        Args:
-            file_size_hash: key: size in bytes, item: list of files that size
-            fileblocks: dict with key: filepath, item: file size in blocks
-            unproc_files: READ/WRITE list of files that cannot be read, this
+        Uses:
+            self.file_size_hash: key: size in bytes, item: list of files that size
+            self.fileblocks: dict with key: filepath, item: file size in blocks
+
+        Affects:
+            self.unproc_files: list of files that cannot be read, this
                 list is added to by this function
 
         Returns:
@@ -985,13 +987,13 @@ class DupFinder:
         It is removed from dup_groups or unique_files and placed in
         unproc_files with the tag "changed".
 
-        Args:
-            filemodtimes:
-            unproc_files: READ/WRITE
-            dup_groups: READ/WRITE
-            unique_files: READ/WRITE
-            filetree: READ/WRITE
-            master_root:
+        Uses:
+            self.filemodtimes:
+
+        Affects:
+            self.unproc_files:
+            self.dup_groups:
+            self.unique_files:
         """
         for filepath in self.filemodtimes:
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
@@ -1016,19 +1018,21 @@ class DupFinder:
         structure.  Files with unique data have unique file IDs.
         File IDs for two files are the same if the files' data are the same.
 
-        Args:
-            dup_groups: list of lists of filepaths that have duplicate data.
+        Uses:
+            self.dup_groups: list of lists of filepaths that have duplicate data.
                 Each list contains:
                 [size in blocks of duplicate files, list of duplicate files]
-            unique_files: list of paths of files that have unique data
-            filetree: READ/WRITE dict of dicts and items representing
+            self.unique_files: list of paths of files that have unique data
+            self.master_root: string that is lowest common root dir for all
+                searched files, dirs
+
+        Affects:
+            self.filetree: dict of dicts and items representing
                 hierarchy of all files searched starting at master_root,
                 keys are file or dir name at that level, items are dict
                 (if dir) or integer file id (if file).  File id is unique
                 if file is unique (based on data).  Files with identical
                 data inside have same file id
-            master_root: string that is lowest common root dir for all
-                searched files, dirs
         """
         file_id = {}
         idnum = 0
@@ -1064,21 +1068,23 @@ class DupFinder:
 
         dir_dict: key: hash based on dir hierarchical contents, item: dir path
 
-        Args:
-            filetree: READ/WRITE
-            master_root: string that is lowest common parent dir path of all
+        Uses:
+            self.master_root: string that is lowest common parent dir path of all
                 searched files
-            fileblocks: READ/WRITE dict where key is path to file/dir, item
+
+        Affects:
+            self.filetree: 
+            self.fileblocks: dict where key is path to file/dir, item
                 is size of file/dir in blocks
-            dup_groups: READ/WRITE list of duplicate file/dir groups.  Duplicate
+            self.dup_groups: list of duplicate file/dir groups.  Duplicate
                 directory groups are added to this.  Format for each sublist
                 of this list:
                 [size in blocks of duplicate dirs, list of duplicate dirs]
 
-        Returns:
-            unique_dirs: list of directories that are not a duplicate of
+        Creates:
+            self.unique_dirs: list of directories that are not a duplicate of
                 any other known directory
-            unknown_dirs: list of directories with an unknown file in the
+            self.unknown_dirs: list of directories with an unknown file in the
                 hierarchy, making these directories also "unknown"
         """
         dup_dirs = []
@@ -1157,8 +1163,8 @@ class DupFinder:
     def print_header(self):
         """Print header information to start report on files and directories.
 
-        Args:
-            master_root: string that is lowest common parent dir path of all
+        Uses:
+            self.master_root: string that is lowest common parent dir path of all
                 searched files
         """
         if self.master_root != "/":
@@ -1169,11 +1175,11 @@ class DupFinder:
 
         Sort duplicate groups based on total size in blocks, biggest size first.
 
-        Args:
-            dup_groups: list of duplicate file/dir groups.  Format for each
+        Uses:
+            self.dup_groups: list of duplicate file/dir groups.  Format for each
                 sublist of this list:
                 [size in blocks of duplicate dirs, list of duplicate dir paths]
-            master_root: string that is lowest common parent dir path of all
+            self.master_root: string that is lowest common parent dir path of all
                 searched files
         """
         print("")
@@ -1190,9 +1196,9 @@ class DupFinder:
 
         Sort list of unique files and directories alphabetically.
 
-        Args:
-            unique_files: list of unique file/dir paths
-            master_root: string that is lowest common parent dir path of all
+        Uses:
+            self.unique_files: list of unique file/dir paths
+            self.master_root: string that is lowest common parent dir path of all
                 searched files
         """
         unique_filedirs = self.unique_files
@@ -1208,8 +1214,8 @@ class DupFinder:
 
         Any files that are unreadable are listed alphabetically.
 
-        Args:
-            unproc_files: list of unprocessed file paths
+        Uses:
+            self.unproc_files: list of unprocessed file paths
         """
         symlinks = [x[0] for x in self.unproc_files if x[1] == "symlink"]
         ignored = [x[0] for x in self.unproc_files if x[1] == "ignore_files"]
@@ -1271,8 +1277,8 @@ class DupFinder:
 
         Any directories that contain unreadable files listed alphabetically.
 
-        Args:
-            unknown_dirs: list of directory paths for dirs that have
+        Uses:
+            self.unknown_dirs: list of directory paths for dirs that have
                 unreadable files
         """
         if self.unknown_dirs:
