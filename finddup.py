@@ -49,7 +49,7 @@ MEM_TO_USE = 1024*1024*1024   # 1GB
 MAX_FILES_OPEN = 200
 
 
-class StderrPrinter(object):
+class StderrPrinter:
     """Prints to stderr especially for use with \r and same-line updates
 
     Keeps track of whether an extra \n is needed before printing string,
@@ -679,7 +679,7 @@ def get_frequencies(file_size_hash):
     return freq_dict
 
 
-class DupFinder():
+class DupFinder:
     def __init__(self, searchpaths):
         self.searchpaths = None
         self.master_root = None
