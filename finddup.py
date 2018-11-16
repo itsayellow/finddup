@@ -409,7 +409,12 @@ def read_filelist(filelist_group, filepos, amt_file_read):
         file_bytes_read = 0
     return (filedata_list, filelist_group_new, unproc_files, file_bytes_read)
 
-
+# Python default recursion limit: 1000
+#   If we added a level of recursion every time we found a new group of files
+#       we would only be able to process worst case 1000 non-identical files
+#       of the same exact size.
+#   If we really wanted to use recursive, we could use it for any members of 
+#       filelist smaller than 1000 for sure
 def compare_file_group(filelist, fileblocks):
     """Compare data in files, find groups of identical and unique files.
 
@@ -941,14 +946,12 @@ class DupFinder:
             self.file_size_hash: key: size in bytes, item: list of files that size
             self.fileblocks: dict with key: filepath, item: file size in blocks
 
-        Affects:
+        Affects (aka Return values):
             self.unproc_files: list of files that cannot be read, this
                 list is added to by this function
-
-        Returns:
-            dup_groups: list of lists.  Each list contains:
+            self.dup_groups: list of lists.  Each list contains:
                 [size in blocks of duplicate files, list of duplicate files]
-            unique_files: list of filepaths that are unique
+            self.unique_files: list of filepaths that are unique
         """
         self.unique_files = []
         self.dup_groups = []
