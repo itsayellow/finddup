@@ -597,8 +597,8 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
 
     Recursion causes lowest leaf dirs to be ID'ed first
 
-    Every dir ID string is alphabetized to ensure the same order for the
-    same set of file IDs.
+    Every collection of dir ID string components are alphabetized to ensure
+    the same order for the same set of file IDs.
 
     Saves dir IDs into dir_dict.  Saves dir size in blocks into fileblocks.
     Example:
