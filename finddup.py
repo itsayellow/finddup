@@ -1333,7 +1333,7 @@ def main(argv=None):
     return 0
 
 
-if __name__ == '__main__':
+def cli():
     try:
         status = main(sys.argv)
     except KeyboardInterrupt:
@@ -1341,3 +1341,7 @@ if __name__ == '__main__':
         # "Terminated by Ctrl-C"
         status = 130
     sys.exit(status)
+
+
+if __name__ == '__main__':
+    cli()
