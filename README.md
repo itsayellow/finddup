@@ -6,10 +6,14 @@ or unique files, file names are ignored for this purpose.
 
 ## Installation
 
-### pipx <= v14.0.0
+Install pipx.
 
-    pipx install --spec git+https://github.com/itsayellow/finddup finddup
+```
+pip install pipx
+```
 
-### pipx > v14.0.0
+Install finddup.
 
-    pipx install git+https://github.com/itsayellow/finddup
+```
+pipx install git+https://github.com/itsayellow/finddup
+```
