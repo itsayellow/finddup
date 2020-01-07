@@ -6,7 +6,7 @@ or unique files, file names are ignored for this purpose.
 
 ## Installation
 
-Install pipx.
+Install [pipx](https://github.com/pipxproject/pipx).
 
 ```
 pip install pipx
