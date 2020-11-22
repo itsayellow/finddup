@@ -1239,11 +1239,12 @@ class DupFinder:
             print("\n\nUnreadable Files (ignored)")
             print("----------------")
             for err_file in sorted(other):
+                print(f"err_file = {err_file}")
                 filedir_str = self._filedir_rel_master_root(err_file[0])
                 print("  "+filedir_str)
                 for msg in err_file[1:]:
                     err_str = textwrap.fill(
-                            msg, initial_indent=' '*2, subsequent_indent=' '*6)
+                            str(msg), initial_indent=' '*2, subsequent_indent=' '*6)
                     print(err_str)
         if sockets:
             print("\n\nSockets (ignored)")
@@ -1317,6 +1318,12 @@ def main(argv=None):
     mytimer = tictoc.Timer()
     mytimer.start()
     args = process_command_line(argv)
+
+    # Make sure all searchpaths exist
+    for search_path in args.searchpaths:
+        if not os.path.exists(search_path):
+            print("Error: " + search_path + " does not exist.", file=sys.stderr)
+            return 1
 
     # initialize DupFinder object with searchpaths
     dup_find = DupFinder(args.searchpaths)
