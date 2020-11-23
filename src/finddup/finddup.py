@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# #!/usr/bin/env python3
 
 """Find duplicate files, dirs based on their data, not names.
     Finds identical files, dirs even if they have different names.
@@ -29,24 +29,19 @@ import os
 import os.path
 import stat
 import sys
-import argparse
 import time
 import textwrap
 from pathlib import Path
-from typing import Tuple
-#import subprocess
-#import re
-#from functools import partial
-#import multiprocessing.pool
+from typing import Tuple, List
 
 import tictoc
 
 
 # how much total memory bytes to use during comparison of files
 #   (Larger is faster up to a point)
-MEM_TO_USE = 512*1024*1024    # 512MB
-MEM_TO_USE = 2*1024*1024*1024 # 2GB
-MEM_TO_USE = 1024*1024*1024   # 1GB
+MEM_TO_USE = 512 * 1024 * 1024  # 512MB
+MEM_TO_USE = 2 * 1024 * 1024 * 1024  # 2GB
+MEM_TO_USE = 1024 * 1024 * 1024  # 1GB
 
 # how many files we can have open at the same time
 MAX_FILES_OPEN = 200
@@ -62,13 +57,13 @@ class StderrPrinter:
     Allows for easily printing error messages (regular print) amongst
     same-line updates (starting with \r and with no finishing \n).
     """
+
     def __init__(self):
         self.need_cr = False
 
     def print(self, text, **prkwargs):
-        """Print to stderr, automatically knowing if we need a CR beforehand.
-        """
-        if text.startswith('\r'):
+        """Print to stderr, automatically knowing if we need a CR beforehand."""
+        if text.startswith("\r"):
             self.need_cr = False
         # we need_cr if last print specifically didn't have a \n,
         #   and this one doesn't start with \r
@@ -82,7 +77,7 @@ class StderrPrinter:
 
         print(text, file=sys.stderr, **prkwargs)
 
-        if prkwargs.get('end', '\n') == '' and not text.endswith('\n'):
+        if prkwargs.get("end", "\n") == "" and not text.endswith("\n"):
             self.need_cr = True
         else:
             self.need_cr = False
@@ -90,40 +85,6 @@ class StderrPrinter:
 
 # Global
 myerr = StderrPrinter()
-
-
-def process_command_line(argv):
-    """Process command line invocation arguments and switches.
-
-    Args:
-        argv: list of arguments, or `None` from ``sys.argv[1:]``.
-
-    Returns:
-        args: Namespace with named attributes of arguments and switches
-    """
-    argv = argv[1:]
-
-    # initialize the parser object:
-    parser = argparse.ArgumentParser(
-            description="Find duplicate files and directories in all paths.  "\
-                    "Looks at file content, not names or info.")
-
-    # specifying nargs= puts outputs of parser in list (even if nargs=1)
-
-    # required arguments
-    parser.add_argument('searchpaths', nargs='+', metavar='searchpath',
-            help="Search path(s) (recursively searched)."
-            )
-
-    # switches/options:
-    parser.add_argument(
-        '-v', '--verbose', action='store_true', default=False,
-        help='Verbose status messages.')
-
-    #(settings, args) = parser.parse_args(argv)
-    args = parser.parse_args(argv)
-
-    return args
 
 
 def num2eng(num, k=1024):
@@ -140,16 +101,16 @@ def num2eng(num, k=1024):
     Returns:
         numstr: string of formatted decimal number with unit prefix at end
     """
-    if   num > k**5:
-        numstr = "%.1fP" % (float(num)/k**5)
-    elif num > k**4:
-        numstr = "%.1fT" % (float(num)/k**4)
-    elif num > k**3:
-        numstr = "%.1fG" % (float(num)/k**3)
-    elif num > k**2:
-        numstr = "%.1fM" % (float(num)/k**2)
+    if num > k ** 5:
+        numstr = "%.1fP" % (float(num) / k ** 5)
+    elif num > k ** 4:
+        numstr = "%.1fT" % (float(num) / k ** 4)
+    elif num > k ** 3:
+        numstr = "%.1fG" % (float(num) / k ** 3)
+    elif num > k ** 2:
+        numstr = "%.1fM" % (float(num) / k ** 2)
     elif num > k:
-        numstr = "%.1fk" % (float(num)/k)
+        numstr = "%.1fk" % (float(num) / k)
     else:
         numstr = "%.1g" % (float(num))
     return numstr
@@ -182,9 +143,9 @@ def check_stat_file(filepath: Path, ignore_files: bool):
         this_filestat = os.stat(filepath, follow_symlinks=False)
     except OSError as e:
         # e.g. FileNotFoundError, PermissionError
-        #myerr.print("Filestat Error opening:\n"+filepath )
-        #myerr.print("  Error: "+str(type(e)))
-        #myerr.print("  Error: "+str(e))
+        # myerr.print("Filestat Error opening:\n"+filepath )
+        # myerr.print("  Error: "+str(type(e)))
+        # myerr.print("  Error: "+str(e))
         return (-1, -1, -1, [type(e), str(e)])
     except KeyboardInterrupt:
         # get out if we get a keyboard interrupt
@@ -192,10 +153,10 @@ def check_stat_file(filepath: Path, ignore_files: bool):
     except:
         # this is really an internal error and should never happen
         e = sys.exc_info()
-        myerr.print("UNHANDLED File Stat on: "+str(filepath))
-        myerr.print("  Error: "+str(e[0]))
-        myerr.print("  Error: "+str(e[1]))
-        myerr.print("  Error: "+str(e[2]))
+        myerr.print("UNHANDLED File Stat on: " + str(filepath))
+        myerr.print("  Error: " + str(e[0]))
+        myerr.print("  Error: " + str(e[1]))
+        myerr.print("  Error: " + str(e[2]))
         return (-1, -1, -1, [str(e[0]), str(e[1]), str(e[2])])
 
     this_size = this_filestat.st_size
@@ -204,31 +165,31 @@ def check_stat_file(filepath: Path, ignore_files: bool):
         this_blocks = this_filestat.st_blocks
     except AttributeError:
         # Windows has no st_blocks attribute
-        this_blocks = this_size//512 + (1 if this_size%512 != 0 else 0)
+        this_blocks = this_size // 512 + (1 if this_size % 512 != 0 else 0)
 
     if ignore_files.get(filepath.name, False):
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
-        extra_info = ['ignore_files']
+        extra_info = ["ignore_files"]
     elif filepath.is_symlink():
         # skip symbolic links without commenting
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
-        extra_info = ['symlink']
+        extra_info = ["symlink"]
     elif stat.S_ISFIFO(this_filestat.st_mode):
         # skip FIFOs without commenting
         this_size = -1
         this_mod = -1
         this_blocks = -1
-        extra_info = ['fifo']
+        extra_info = ["fifo"]
     elif stat.S_ISSOCK(this_filestat.st_mode):
         # skip sockets without commenting
         this_size = -1
         this_mod = -1
         this_blocks = -1
-        extra_info = ['socket']
+        extra_info = ["socket"]
     else:
         pass
 
@@ -256,7 +217,7 @@ def matching_array_groups(datachunks_list):
     #   item will always match itself, may match others
     #   save all matching indicies for this chunk into list of indicies
     #       appended to match_idx_groups
-    while ungrp_chunk_indicies: # e.g. while len > 0
+    while ungrp_chunk_indicies:  # e.g. while len > 0
         test_idx = ungrp_chunk_indicies[0]
 
         matching_indicies = []
@@ -266,7 +227,8 @@ def matching_array_groups(datachunks_list):
 
         match_idx_groups.append(matching_indicies)
         ungrp_chunk_indicies = [
-                x for x in ungrp_chunk_indicies if x not in matching_indicies]
+            x for x in ungrp_chunk_indicies if x not in matching_indicies
+        ]
 
     single_idx_groups = [x[0] for x in match_idx_groups if len(x) == 1]
     match_idx_groups = [x for x in match_idx_groups if x[0] not in single_idx_groups]
@@ -305,7 +267,7 @@ def read_filehandle_list(fhlist_group, amt_file_read):
             filedata_size_list.append(len(this_filedata))
         except OSError as e:
             # e.g. FileNotFoundError, PermissionError
-            #myerr.print(str(e))
+            # myerr.print(str(e))
             unproc_files.append([thisfh.name, str(type(e)), str(e)])
             # append -1 to signify invalid
             filedata_list.append(-1)
@@ -316,18 +278,24 @@ def read_filehandle_list(fhlist_group, amt_file_read):
         except:
             # this is really an internal error and should never happen
             e = sys.exc_info()
-            myerr.print("UNHANDLED Error opening:\n"+thisfh.name)
-            myerr.print("  Error: "+str(e[0]))
-            myerr.print("  Error: "+str(e[1]))
-            myerr.print("  Error: "+str(e[2]))
+            myerr.print("UNHANDLED Error opening:\n" + thisfh.name)
+            myerr.print("  Error: " + str(e[0]))
+            myerr.print("  Error: " + str(e[1]))
+            myerr.print("  Error: " + str(e[2]))
             raise e[0]
 
     # remove invalid files from fhlist_group, filedata_list,
     #   filedata_size_list
-    invalid_idxs = [i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1]
-    fhlist_group_new = [x for (i, x) in enumerate(fhlist_group) if i not in invalid_idxs]
+    invalid_idxs = [
+        i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1
+    ]
+    fhlist_group_new = [
+        x for (i, x) in enumerate(fhlist_group) if i not in invalid_idxs
+    ]
     filedata_list = [x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs]
-    filedata_size_list = [x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs]
+    filedata_size_list = [
+        x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs
+    ]
 
     if filedata_size_list:
         file_bytes_read = filedata_size_list[0]
@@ -364,7 +332,7 @@ def read_filelist(filelist_group, filepos, amt_file_read):
     #   data into filedata_list
     for thisfile in filelist_group:
         try:
-            with open(thisfile, 'rb') as thisfile_fh:
+            with open(thisfile, "rb") as thisfile_fh:
                 thisfile_fh.seek(filepos)
                 this_filedata = thisfile_fh.read(amt_file_read)
             filedata_list.append(this_filedata)
@@ -373,7 +341,7 @@ def read_filelist(filelist_group, filepos, amt_file_read):
             filedata_size_list.append(len(this_filedata))
         except OSError as e:
             # e.g. FileNotFoundError, PermissionError
-            #myerr.print(str(e))
+            # myerr.print(str(e))
             unproc_files.append([thisfile, str(type(e)), str(e)])
             # append -1 to signify invalid
             filedata_list.append(-1)
@@ -384,26 +352,24 @@ def read_filelist(filelist_group, filepos, amt_file_read):
         except:
             # this is really an internal error and should never happen
             e = sys.exc_info()
-            myerr.print("UNHANDLED Error opening:\n"+thisfile)
-            myerr.print("  Error: "+str(e[0]))
-            myerr.print("  Error: "+str(e[1]))
-            myerr.print("  Error: "+str(e[2]))
+            myerr.print("UNHANDLED Error opening:\n" + thisfile)
+            myerr.print("  Error: " + str(e[0]))
+            myerr.print("  Error: " + str(e[1]))
+            myerr.print("  Error: " + str(e[2]))
             raise e[0]
 
     # remove invalid files from filelist_group, filedata_list,
     #   filedata_size_list
     invalid_idxs = [
-            i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1
-            ]
+        i for i in range(len(filedata_size_list)) if filedata_size_list[i] == -1
+    ]
     filelist_group_new = [
-            x for (i, x) in enumerate(filelist_group) if i not in invalid_idxs
-            ]
-    filedata_list = [
-            x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs
-            ]
+        x for (i, x) in enumerate(filelist_group) if i not in invalid_idxs
+    ]
+    filedata_list = [x for (i, x) in enumerate(filedata_list) if i not in invalid_idxs]
     filedata_size_list = [
-            x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs
-            ]
+        x for (i, x) in enumerate(filedata_size_list) if i not in invalid_idxs
+    ]
 
     if filedata_size_list:
         file_bytes_read = filedata_size_list[0]
@@ -412,11 +378,12 @@ def read_filelist(filelist_group, filepos, amt_file_read):
         file_bytes_read = 0
     return (filedata_list, filelist_group_new, unproc_files, file_bytes_read)
 
+
 # Python default recursion limit: 1000
 #   If we added a level of recursion every time we found a new group of files
 #       we would only be able to process worst case 1000 non-identical files
 #       of the same exact size.
-#   If we really wanted to use recursive, we could use it for any members of 
+#   If we really wanted to use recursive, we could use it for any members of
 #       filelist smaller than 1000 for sure
 def compare_file_group(filelist, fileblocks):
     """Compare data in files, find groups of identical and unique files.
@@ -450,7 +417,7 @@ def compare_file_group(filelist, fileblocks):
 
     # check if this is too easy (only one file)
     if len(filelist) == 1:
-        #(unique_files,dup_groups,unproc_files)
+        # (unique_files,dup_groups,unproc_files)
         return (filelist, [], [])
 
     # initial file position is 0
@@ -469,18 +436,18 @@ def compare_file_group(filelist, fileblocks):
         try:
             for filename in filelist:
                 try:
-                    fh = open(filename, 'rb')
+                    fh = open(filename, "rb")
                 except OSError as e:
                     # e.g. FileNotFoundError, PermissionError
-                    #myerr.print(str(e))
+                    # myerr.print(str(e))
                     unproc_files.append([filename, str(type(e)), str(e)])
-                    #print("Can't open "+filename)
+                    # print("Can't open "+filename)
                 except KeyboardInterrupt:
                     # get out if we get a keyboard interrupt
                     raise
                 except:
                     # this is really an internal error and should never happen
-                    print("UNHANDLED ERROR WITH OPENING "+filename)
+                    print("UNHANDLED ERROR WITH OPENING " + filename)
                     unproc_files.append(filename)
                     print(unproc_files)
                 else:
@@ -499,13 +466,13 @@ def compare_file_group(filelist, fileblocks):
         # list containing one item that is a list of filenames
         filelist_groups_next = [filelist]
     try:
-        while filelist_groups_next: # i.e. while len > 0
+        while filelist_groups_next:  # i.e. while len > 0
             filelist_groups = filelist_groups_next[:]
             # reset next groups
             filelist_groups_next = []
 
             # for debugging print current groups every time through
-            #print([len(x) for x in filelist_groups])
+            # print([len(x) for x in filelist_groups])
 
             # each filelist_group is a possible set of duplicate files
             # a file is split off from a filelist_group as it is shown to be
@@ -514,36 +481,38 @@ def compare_file_group(filelist, fileblocks):
             for filelist_group in filelist_groups:
                 if open_filehandles:
                     # in this case, filelist_group is a list of filehandles
-                    (filedata_list,
-                            filelist_group,
-                            this_unproc_files,
-                            file_bytes_read
-                            ) = read_filehandle_list(filelist_group,
-                                    amt_file_read)
+                    (
+                        filedata_list,
+                        filelist_group,
+                        this_unproc_files,
+                        file_bytes_read,
+                    ) = read_filehandle_list(filelist_group, amt_file_read)
                     unproc_files.extend(this_unproc_files)
                 else:
                     # in this case, filelist_group is a list of strings
                     #   specifying filenames
-                    (filedata_list,
-                            filelist_group,
-                            this_unproc_files,
-                            file_bytes_read
-                            ) = read_filelist(filelist_group,
-                                    filepos,
-                                    amt_file_read)
+                    (
+                        filedata_list,
+                        filelist_group,
+                        this_unproc_files,
+                        file_bytes_read,
+                    ) = read_filelist(filelist_group, filepos, amt_file_read)
                     unproc_files.extend(this_unproc_files)
 
                 # get groups of indicies with datachunks that match each other
                 (match_idx_groups, single_idx_groups) = matching_array_groups(
-                        filedata_list)
+                    filedata_list
+                )
 
                 # add to list of unique files for singleton groups
                 if open_filehandles:
                     unique_files.extend(
-                            [filelist_group[s_i_g].name for s_i_g in single_idx_groups])
+                        [filelist_group[s_i_g].name for s_i_g in single_idx_groups]
+                    )
                 else:
                     unique_files.extend(
-                            [filelist_group[s_i_g] for s_i_g in single_idx_groups])
+                        [filelist_group[s_i_g] for s_i_g in single_idx_groups]
+                    )
 
                 # we stop reading a file if it is confirmed unique, or if we get
                 #   to the end of the file
@@ -556,38 +525,45 @@ def compare_file_group(filelist, fileblocks):
                         #   read, we are at end of files and this is a final
                         #   dupgroup
                         if open_filehandles:
-                            this_dup_group_list = [filelist_group[i].name for i in match_idx_group]
+                            this_dup_group_list = [
+                                filelist_group[i].name for i in match_idx_group
+                            ]
                         else:
-                            this_dup_group_list = [filelist_group[i] for i in match_idx_group]
+                            this_dup_group_list = [
+                                filelist_group[i] for i in match_idx_group
+                            ]
                         this_dup_blocks = fileblocks[this_dup_group_list[0]]
                         dup_groups.append([this_dup_blocks, this_dup_group_list])
                     else:
                         # if filedata size is amt_file_read then not at end of
                         #   files, keep reading / checking
                         filelist_groups_next.append(
-                                [filelist_group[i] for i in match_idx_group])
+                            [filelist_group[i] for i in match_idx_group]
+                        )
 
             # increment file position for reading next time through groups
             filepos = filepos + amt_file_read
 
-            if filelist_groups_next: # i.e if non-empty
+            if filelist_groups_next:  # i.e if non-empty
                 # after first pass dramatically increase file read size to max
                 # max file read is total memory to be used divided by num of files
                 #   in largest group this iter
                 # total no more than MEM_TO_USE
-                amt_file_read = MEM_TO_USE // max([len(x) for x in filelist_groups_next])
-                #amt_file_read = 5 # small for debugging
+                amt_file_read = MEM_TO_USE // max(
+                    [len(x) for x in filelist_groups_next]
+                )
+                # amt_file_read = 5 # small for debugging
                 if amt_file_read < 5:
                     raise Exception(
-                            "compare_file_group: too many files to compare: " \
-                                    + str(len(filelist)))
+                        "compare_file_group: too many files to compare: "
+                        + str(len(filelist))
+                    )
     finally:
         # whatever happens, make sure we close all open filehandles in this
         #   group
         for fh in open_filehandles:
-            #print("Closing " + fh.name)
+            # print("Closing " + fh.name)
             fh.close()
-
 
     return (unique_files, dup_groups, unproc_files)
 
@@ -628,7 +604,8 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
         # key is name of dir/file inside of this dir
         if isinstance(subtree[key], dict):
             item = recurse_subtree(
-                    os.path.join(name, key), subtree[key], dir_dict, fileblocks)
+                os.path.join(name, key), subtree[key], dir_dict, fileblocks
+            )
         else:
             item = str(subtree[key])
         dir_blocks += fileblocks[os.path.join(name, key)]
@@ -643,7 +620,7 @@ def recurse_subtree(name, subtree, dir_dict, fileblocks):
         hier_id_str = "-1"
     else:
         itemlist.sort()
-        hier_id_str = '['+','.join(itemlist)+']'
+        hier_id_str = "[" + ",".join(itemlist) + "]"
 
     dir_dict.setdefault(hier_id_str, []).append(name)
 
@@ -682,13 +659,13 @@ def get_frequencies(file_size_hash):
         freq_dict[numfiles] = freq_dict.get(numfiles, 0) + 1
 
     for key in sorted(freq_dict):
-        print("%d: %d hits"%(key, freq_dict[key]))
+        print("%d: %d hits" % (key, freq_dict[key]))
 
     return freq_dict
 
 
 class DupFinder:
-    def __init__(self, searchpaths):
+    def __init__(self, searchpaths: List[Path]):
         self.searchpaths = None
         self.master_root = None
         self.file_size_hash = None
@@ -702,16 +679,16 @@ class DupFinder:
         self.unknown_dirs = None
         # TODO more generalized way of specifying this
         self.ignore_files = {
-                ".picasa.ini":True,
-                ".DS_Store":True,
-                "Thumbs.db":True,
-                " Icon\r":True,
-                "Icon\r":True
-                }
+            ".picasa.ini": True,
+            ".DS_Store": True,
+            "Thumbs.db": True,
+            " Icon\r": True,
+            "Icon\r": True,
+        }
 
         # eliminate duplicates, and paths that are sub-paths of other
         #   searchpaths
-        self._process_searchpaths(searchpaths)
+        self._process_searchpaths([str(x) for x in searchpaths])
 
     def _process_searchpaths(self, searchpaths):
         """Regularize searchpaths and remove redundants, get parent root of all.
@@ -742,7 +719,7 @@ class DupFinder:
         for searchpath1 in new_searchpaths:
             for searchpath2 in new_searchpaths:
                 test_relpath = os.path.relpath(searchpath1, start=searchpath2)
-                if test_relpath != '.' and not test_relpath.startswith('..'):
+                if test_relpath != "." and not test_relpath.startswith(".."):
                     # if '.' : searchpath1 and searchpath2 are same path
                     #   (search artifact)
                     # if relpath doesn't start with .. , then searchpath1 is
@@ -784,10 +761,10 @@ class DupFinder:
         """
         # root includes master_root
         root_relative = os.path.relpath(root, start=self.master_root)
-        #print( "  root_relative to master_root: " + root_relative)
+        # print( "  root_relative to master_root: " + root_relative)
         subtree = self.filetree
         for pathpart in root_relative.split(os.path.sep):
-            if pathpart and pathpart != '.':
+            if pathpart and pathpart != ".":
                 # either get pathpart key of subtree or create new one (empty dict)
                 subtree = subtree.setdefault(pathpart, {})
         return subtree
@@ -800,7 +777,7 @@ class DupFinder:
         self.hash_files_by_size()
 
         # DEBUG find frequencies of group sizes (collect statistics)
-        #freq_dict = get_frequencies(self.file_size_hash)
+        # freq_dict = get_frequencies(self.file_size_hash)
 
         # compare all filegroups by using byte-by-byte comparison to find actually
         #   unique, duplicate
@@ -868,22 +845,22 @@ class DupFinder:
         self.filemodtimes = {}
         filesreport_time = time.time()
 
-        #.........................
+        # .........................
         # local function to process one file
         def process_file_size():
-            """ Get size and otherwise catalog one file
-            """
+            """Get size and otherwise catalog one file"""
             # read/write these from hash_files_by_size scope
             nonlocal filesdone, filesreport_time
 
             filepath = os.path.join(root, filename)
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                    Path(filepath), self.ignore_files)
+                Path(filepath), self.ignore_files
+            )
             # if valid blocks then record for dir block tally
             if this_blocks != -1:
                 self.fileblocks[filepath] = this_blocks
             if this_size == -1:
-                self.unproc_files.append([filepath]+extra_info)
+                self.unproc_files.append([filepath] + extra_info)
                 return
 
             # set filename branch of self.filetree to -1 (placeholder, meaning no id)
@@ -900,11 +877,13 @@ class DupFinder:
             self.filemodtimes[filepath] = this_mod
 
             filesdone += 1
-            if filesdone%1000 == 0 or time.time()-filesreport_time > 15:
+            if filesdone % 1000 == 0 or time.time() - filesreport_time > 15:
                 myerr.print(
-                        "\r  "+str(filesdone)+" files sized.", end='', flush=True)
+                    "\r  " + str(filesdone) + " files sized.", end="", flush=True
+                )
                 filesreport_time = time.time()
-        #.........................
+
+        # .........................
 
         # Actual hierarchical file stat processing
         for treeroot in self.searchpaths:
@@ -924,7 +903,7 @@ class DupFinder:
                 process_file_size()
 
             # print final tally with CR
-            myerr.print("\r  "+str(filesdone)+" files sized.")
+            myerr.print("\r  " + str(filesdone) + " files sized.")
 
         # tally unique, possibly duplicate files
         unique = 0
@@ -934,8 +913,8 @@ class DupFinder:
                 unique += 1
             else:
                 nonunique += len(self.file_size_hash[key])
-        myerr.print("\nUnique: %d    "%unique)
-        myerr.print("Possibly Non-Unique: %d\n"%nonunique)
+        myerr.print("\nUnique: %d    " % unique)
+        myerr.print("Possibly Non-Unique: %d\n" % nonunique)
 
     def compare_files(self):
         """Determine duplicate, unique files from file data
@@ -965,23 +944,24 @@ class DupFinder:
 
         old_time = 0
         for (i, key) in enumerate(self.file_size_hash.keys()):
-            (this_unique_files, this_dup_groups, this_unproc_files
-                    ) = compare_file_group(self.file_size_hash[key], self.fileblocks)
+            (
+                this_unique_files,
+                this_dup_groups,
+                this_unproc_files,
+            ) = compare_file_group(self.file_size_hash[key], self.fileblocks)
             self.unique_files.extend(this_unique_files)
             self.dup_groups.extend(this_dup_groups)
             self.unproc_files.extend(this_unproc_files)
-            if compare_files_timer.eltime() > old_time+0.4:
+            if compare_files_timer.eltime() > old_time + 0.4:
                 old_time = compare_files_timer.eltime()
-                #compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
+                # compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
                 compare_files_timer.progress_pr(
-                        frac_done=(i+1)/len(self.file_size_hash),
-                        file=sys.stderr
-                        )
+                    frac_done=(i + 1) / len(self.file_size_hash), file=sys.stderr
+                )
         # print one last time to get the 100% done tally
         compare_files_timer.progress_pr(
-                frac_done=(i+1)/len(self.file_size_hash),
-                file=sys.stderr
-                )
+            frac_done=(i + 1) / len(self.file_size_hash), file=sys.stderr
+        )
 
         myerr.print("\nFinished comparing file data")
 
@@ -1003,7 +983,8 @@ class DupFinder:
         """
         for filepath in self.filemodtimes:
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                    Path(filepath), self.ignore_files)
+                Path(filepath), self.ignore_files
+            )
             if this_mod != self.filemodtimes[filepath]:
                 # file has changed since start of this program
                 (this_dir, this_file) = os.path.split(filepath)
@@ -1079,7 +1060,7 @@ class DupFinder:
                 searched files
 
         Affects:
-            self.filetree: 
+            self.filetree:
             self.fileblocks: dict where key is path to file/dir, item
                 is size of file/dir in blocks
             self.dup_groups: list of duplicate file/dir groups.  Duplicate
@@ -1117,17 +1098,19 @@ class DupFinder:
                 # duplicate dir group
                 this_blocks = self.fileblocks[first_dir]
                 dup_dirs.append(
-                        [this_blocks, [x+os.path.sep for x in dir_dict[dirkey]]])
+                    [this_blocks, [x + os.path.sep for x in dir_dict[dirkey]]]
+                )
             elif len(dir_dict[dirkey]) == 1:
                 # unique dirs
                 self.unique_dirs.append(first_dir + os.path.sep)
             else:
-                raise Exception("Internal error: analyze_dirs has"\
-                        " zero-size dir group.")
+                raise Exception(
+                    "Internal error: analyze_dirs has" " zero-size dir group."
+                )
         self.dup_groups.extend(dup_dirs)
 
     def _filedir_rel_master_root(self, filedir):
-        """ Returns the path of filedir relative to master_root.
+        """Returns the path of filedir relative to master_root.
 
         If master_root is / (filesystem root dir) then return full absolute path.
 
@@ -1174,7 +1157,7 @@ class DupFinder:
                 searched files
         """
         if self.master_root != "/":
-            print("All file paths referenced from:\n"+self.master_root)
+            print("All file paths referenced from:\n" + self.master_root)
 
     def print_sorted_dups(self):
         """Print report of sorted duplicate files and directories.
@@ -1192,10 +1175,10 @@ class DupFinder:
         print("Duplicate Files/Directories:")
         print("----------------")
         for dup_group in sorted(self.dup_groups, reverse=True, key=lambda x: x[0]):
-            print("Duplicate set (%sB each)"%(num2eng(512*dup_group[0])))
+            print("Duplicate set (%sB each)" % (num2eng(512 * dup_group[0])))
             for filedir in sorted(dup_group[1]):
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  %s"%filedir_str)
+                print("  %s" % filedir_str)
 
     def print_sorted_uniques(self):
         """Print report of sorted list of unique files and directories
@@ -1243,41 +1226,42 @@ class DupFinder:
             for err_file in sorted(other):
                 print(f"err_file = {err_file}")
                 filedir_str = self._filedir_rel_master_root(err_file[0])
-                print("  "+filedir_str)
+                print("  " + filedir_str)
                 for msg in err_file[1:]:
                     err_str = textwrap.fill(
-                            str(msg), initial_indent=' '*2, subsequent_indent=' '*6)
+                        str(msg), initial_indent=" " * 2, subsequent_indent=" " * 6
+                    )
                     print(err_str)
         if sockets:
             print("\n\nSockets (ignored)")
             print("----------------")
             for filedir in sorted(sockets):
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  "+filedir_str)
+                print("  " + filedir_str)
         if fifos:
             print("\n\nFIFOs (ignored)")
             print("----------------")
             for filedir in sorted(fifos):
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  "+filedir_str)
+                print("  " + filedir_str)
         if symlinks:
             print("\n\nSymbolic Links (ignored)")
             print("----------------")
             for filedir in sorted(symlinks):
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  "+filedir_str)
+                print("  " + filedir_str)
         if changes:
             print("\n\nChanged Files (since start of this program's execution)")
             print("----------------")
             for filedir in changes:
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  "+filedir_str)
+                print("  " + filedir_str)
         if ignored:
             print("\n\nIgnored Files")
             print("----------------")
             for filedir in sorted(ignored):
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  "+filedir_str)
+                print("  " + filedir_str)
 
     def print_unknown_dirs(self):
         """Print report of all files unable to be processed.
@@ -1293,64 +1277,4 @@ class DupFinder:
             print("----------------")
             for filedir in sorted(self.unknown_dirs):
                 filedir_str = self._filedir_rel_master_root(filedir)
-                print("  "+filedir_str)
-
-
-#   1. For every file, get: size, mod_time
-#   2. hash by sizes, each hash size in dict fill with list of all files
-#       that size
-#   3. go through each hash, deciding which of the list are unique or same
-#       by comparing matching-size files chunk by chunk, splitting into
-#       subgroups as differences found
-def main(argv=None):
-    """Search one or more searchpaths, report unique or duplicate files.
-
-    Files are searched by data only, file names and attributes are
-    irrelevant to determining uniqueness.
-
-    In all internal data structures, paths are represented as absolute.
-
-    In the report, paths are relative to the lowest common path of all
-    searchpaths.
-
-    Args:
-        switches
-        searchpaths
-    """
-    mytimer = tictoc.Timer()
-    mytimer.start()
-    args = process_command_line(argv)
-
-    # Make sure all searchpaths exist
-    for search_path in args.searchpaths:
-        if not os.path.exists(search_path):
-            print("Error: " + search_path + " does not exist.", file=sys.stderr)
-            return 1
-
-    # initialize DupFinder object with searchpaths
-    dup_find = DupFinder(args.searchpaths)
-
-    # ANALYZE FILES, DIRECTORIES
-    dup_find.analyze()
-
-    # PRINT REPORT
-    dup_find.print_full_report()
-
-    print("")
-    mytimer.eltime_pr("Total Elapsed time: ", file=sys.stderr)
-    mytimer.eltime_pr("Total Elapsed time: ", file=sys.stdout)
-    return 0
-
-
-def cli():
-    try:
-        status = main(sys.argv)
-    except KeyboardInterrupt:
-        print("\nStopped by user.", file=sys.stderr)
-        # "Terminated by Ctrl-C"
-        status = 130
-    sys.exit(status)
-
-
-if __name__ == '__main__':
-    cli()
+                print("  " + filedir_str)
