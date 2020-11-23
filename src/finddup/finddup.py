@@ -32,6 +32,8 @@ import sys
 import argparse
 import time
 import textwrap
+from pathlib import Path
+from typing import Tuple
 #import subprocess
 #import re
 #from functools import partial
@@ -153,7 +155,7 @@ def num2eng(num, k=1024):
     return numstr
 
 
-def check_stat_file(filepath, ignore_files):
+def check_stat_file(filepath: Path, ignore_files: bool):
     """Get file's stat from os, and handle files we ignore.
 
     Get filestat on file if possible (i.e. readable), discard if symlink,
@@ -190,7 +192,7 @@ def check_stat_file(filepath, ignore_files):
     except:
         # this is really an internal error and should never happen
         e = sys.exc_info()
-        myerr.print("UNHANDLED File Stat on: "+filepath)
+        myerr.print("UNHANDLED File Stat on: "+str(filepath))
         myerr.print("  Error: "+str(e[0]))
         myerr.print("  Error: "+str(e[1]))
         myerr.print("  Error: "+str(e[2]))
@@ -204,12 +206,12 @@ def check_stat_file(filepath, ignore_files):
         # Windows has no st_blocks attribute
         this_blocks = this_size//512 + (1 if this_size%512 != 0 else 0)
 
-    if ignore_files.get(os.path.basename(filepath), False):
+    if ignore_files.get(filepath.name, False):
         this_size = -1
         this_mod = -1
         this_blocks = this_blocks
         extra_info = ['ignore_files']
-    elif os.path.islink(filepath):
+    elif filepath.is_symlink():
         # skip symbolic links without commenting
         this_size = -1
         this_mod = -1
@@ -876,7 +878,7 @@ class DupFinder:
 
             filepath = os.path.join(root, filename)
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                    filepath, self.ignore_files)
+                    Path(filepath), self.ignore_files)
             # if valid blocks then record for dir block tally
             if this_blocks != -1:
                 self.fileblocks[filepath] = this_blocks
@@ -1001,7 +1003,7 @@ class DupFinder:
         """
         for filepath in self.filemodtimes:
             (this_size, this_mod, this_blocks, extra_info) = check_stat_file(
-                    filepath, self.ignore_files)
+                    Path(filepath), self.ignore_files)
             if this_mod != self.filemodtimes[filepath]:
                 # file has changed since start of this program
                 (this_dir, this_file) = os.path.split(filepath)
