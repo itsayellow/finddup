@@ -1,6 +1,49 @@
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "finddup"
+dynamic = ["version"]
+description = "Find all duplicate and uniqe files based on file data."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.6"
+authors = [
+    { name = "Matthew A. Clapp", email = "itsayellow+dev@gmail.com" },
+]
+keywords = [
+    "duplicate",
+    "files",
+]
+classifiers = [
+    "Natural Language :: English",
+]
+dependencies = [
+    "tictoc @ git+https://github.com/itsayellow/tictoc@master",
+]
+
+[project.scripts]
+finddup = "finddup.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/itsayellow/finddup"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "src/finddup/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/finddup",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/ src",
+]
 
 [tool.isort]
 profile = "black"
