@@ -943,7 +943,12 @@ class DupFinder:
         myerr.print("Comparing file data...")
 
         old_time = 0
-        for (i, key) in enumerate(self.file_size_hash.keys()):
+        sum_size_done = 0
+        sum_size_total = sum(
+            [x * len(y) for (x, y) in self.file_size_hash.items() if len(y) > 1]
+        )
+        print(f"sum_size_total = {sum_size_total}")
+        for key in self.file_size_hash:
             (
                 this_unique_files,
                 this_dup_groups,
@@ -952,15 +957,16 @@ class DupFinder:
             self.unique_files.extend(this_unique_files)
             self.dup_groups.extend(this_dup_groups)
             self.unproc_files.extend(this_unproc_files)
+            if len(self.file_size_hash[key]) > 1:
+                sum_size_done += key * len(self.file_size_hash[key])
             if compare_files_timer.eltime() > old_time + 0.4:
                 old_time = compare_files_timer.eltime()
-                # compare_files_timer.eltime_pr("\rElapsed: ", end='', file=sys.stderr)
                 compare_files_timer.progress_pr(
-                    frac_done=(i + 1) / len(self.file_size_hash), file=sys.stderr
+                    frac_done=sum_size_done / sum_size_total, file=sys.stderr
                 )
         # print one last time to get the 100% done tally
         compare_files_timer.progress_pr(
-            frac_done=(i + 1) / len(self.file_size_hash), file=sys.stderr
+            frac_done=sum_size_done / sum_size_total, file=sys.stderr
         )
 
         myerr.print("\nFinished comparing file data")
