@@ -101,14 +101,14 @@ def num2eng(num, k=1024):
     Returns:
         numstr: string of formatted decimal number with unit prefix at end
     """
-    if num > k ** 5:
-        numstr = "%.1fP" % (float(num) / k ** 5)
-    elif num > k ** 4:
-        numstr = "%.1fT" % (float(num) / k ** 4)
-    elif num > k ** 3:
-        numstr = "%.1fG" % (float(num) / k ** 3)
-    elif num > k ** 2:
-        numstr = "%.1fM" % (float(num) / k ** 2)
+    if num > k**5:
+        numstr = "%.1fP" % (float(num) / k**5)
+    elif num > k**4:
+        numstr = "%.1fT" % (float(num) / k**4)
+    elif num > k**3:
+        numstr = "%.1fG" % (float(num) / k**3)
+    elif num > k**2:
+        numstr = "%.1fM" % (float(num) / k**2)
     elif num > k:
         numstr = "%.1fk" % (float(num) / k)
     else:
